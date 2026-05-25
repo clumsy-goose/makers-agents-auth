@@ -86,7 +86,7 @@ export default function CodeViewer() {
 
           {/* ── Step 1: Store user message ── */}
           <L n={12}>
-            <I /><Cmt t="// 1. EdgeOne Store：保存用户消息，供历史恢复" />
+            <I /><Cmt t="// 1. EdgeOne Store: save user message for history restore" />
           </L>
           <L n={13}>
             <I /><Kw t="await " /><Va t="store" /><Op t="?." /><Fn t="appendMessage" /><Op t="?.({" />
@@ -107,7 +107,7 @@ export default function CodeViewer() {
 
           {/* ── Step 2: Inject session memory ── */}
           <L n={19}>
-            <I /><Cmt t="// 2. EdgeOne Store：注入 OpenAI Agents SDK 会话记忆" />
+            <I /><Cmt t="// 2. EdgeOne Store: inject OpenAI Agents SDK session memory" />
           </L>
           <L n={20}>
             <I /><Kw t="const " /><Va t="session" /><Op t=" = " />
@@ -117,7 +117,7 @@ export default function CodeViewer() {
 
           {/* ── Step 3: Define tools ── */}
           <L n={22}>
-            <I /><Cmt t="// 3. 使用当前项目定义的 Agent tools" />
+            <I /><Cmt t="// 3. Use Agent tools defined in this project" />
           </L>
           <L n={23}>
             <I /><Kw t="const " /><Va t="getWeather" /><Op t=" = " /><Fn t="tool" /><Op t="({" />
@@ -161,7 +161,7 @@ export default function CodeViewer() {
 
           {/* ── Step 4: Create Agent ── */}
           <L n={37}>
-            <I /><Cmt t="// 4. 创建 OpenAI Agent" />
+            <I /><Cmt t="// 4. Create OpenAI Agent" />
           </L>
           <L n={38}>
             <I /><Kw t="const " /><Va t="agent" /><Op t=" = " /><Kw t="new " /><Ty t="Agent" /><Op t="({" />
@@ -185,7 +185,7 @@ export default function CodeViewer() {
 
           {/* ── Step 5: Run Agent ── */}
           <L n={45}>
-            <I /><Cmt t="// 5. 启动 Agent，并注入 Store Session" />
+            <I /><Cmt t="// 5. Launch Agent with Store Session injected" />
           </L>
           <L n={46}>
             <I /><Kw t="const " /><Va t="result" /><Op t=" = " /><Kw t="await " /><Fn t="run" /><Op t="(" />
@@ -207,7 +207,7 @@ export default function CodeViewer() {
 
           {/* ── Collect assistant text ── */}
           <L n={52}>
-            <I /><Cmt t="// 省略 SSE、text_delta、tool_called 等流式细节" />
+            <I /><Cmt t="// SSE / text_delta / tool_called streaming details omitted" />
           </L>
           <L n={53}>
             <I /><Kw t="const " /><Va t="assistantText" /><Op t=" = " /><Kw t="await " />
@@ -217,7 +217,7 @@ export default function CodeViewer() {
 
           {/* ── Step 6: Store assistant message ── */}
           <L n={55}>
-            <I /><Cmt t="// 6. EdgeOne Store：保存助手回复，供 /history 恢复" />
+            <I /><Cmt t="// 6. EdgeOne Store: save assistant reply for /history restore" />
           </L>
           <L n={56}>
             <I /><Kw t="await " /><Va t="store" /><Op t="?." /><Fn t="appendMessage" /><Op t="?.({" />

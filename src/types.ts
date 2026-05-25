@@ -10,5 +10,5 @@ export interface ToolLampState {
   label: string;
   icon: string;
   active: boolean;
-  animKey: number;   // 每次点亮时递增，让动画元素重新挂载以复播动画
+  animKey: number;   // Incremented on each activation to remount and replay animation
 }

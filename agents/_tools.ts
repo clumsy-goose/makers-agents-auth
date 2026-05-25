@@ -20,9 +20,9 @@ const getWeather = tool({
     // TODO: Replace with real weather API (e.g. OpenWeatherMap, wttr.in)
     const mockWeather = {
       city,
-      condition: '晴天',
+      condition: 'Sunny',
       temperature: { min: 18, max: 25, unit: '°C' },
-      wind: '微风',
+      wind: 'Light breeze',
     };
     return JSON.stringify(mockWeather);
   },
@@ -42,12 +42,12 @@ const getClothingAdvice = tool({
     const hot = /(3[0-9]|4[0-9])\s*°/;
 
     if (hot.test(weather)) {
-      return '天气较热，建议穿短袖、短裤，注意防晒和补水。';
+      return 'Hot weather — wear short sleeves, shorts, and stay hydrated.';
     }
     if (cold.test(weather)) {
-      return '天气较冷，建议穿羽绒服或厚外套，搭配围巾和手套。';
+      return 'Cold weather — wear a down jacket or heavy coat with scarf and gloves.';
     }
-    return '建议穿轻薄长袖外套，搭配休闲裤和运动鞋，适合外出活动。';
+    return 'Moderate weather — a light jacket with casual pants and sneakers works well.';
   },
 });
 

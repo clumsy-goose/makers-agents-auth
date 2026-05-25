@@ -9,8 +9,8 @@ interface Props {
 }
 
 const PRESETS = [
-  '现在北京天气怎么样，有什么穿衣建议吗？',
-  '帮我翻译英文"你好，欢迎来到北京！"，并统计翻译字符数。',
+  'What is the weather like in Beijing now? Any clothing suggestions?',
+  'Translate "Hello, welcome to Beijing!" into English and count the characters.',
 ];
 
 export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) {
@@ -65,7 +65,7 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
         <textarea
           ref={textareaRef}
           className={styles.textarea}
-          placeholder="发消息…  ⏎ 发送 · Shift+⏎ 换行"
+          placeholder="Type a message...  ⏎ Send · Shift+⏎ Newline"
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -77,7 +77,7 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
           className={`${styles.sendBtn} ${(!value.trim() || disabled) ? styles.sendDisabled : ''}`}
           onClick={handleSend}
           disabled={!value.trim() || disabled}
-          aria-label="发送"
+          aria-label="Send"
         >
           <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
             <path d="M3 10L17 3l-4 7 4 7L3 10z" fill="currentColor"/>
@@ -102,8 +102,8 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
           <button
             className={styles.stopBtn}
             onClick={onStop}
-            aria-label="停止生成"
-            title="停止生成"
+            aria-label="Stop generation"
+            title="Stop generation"
           >
             <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
               <rect x="4" y="4" width="12" height="12" rx="2" fill="currentColor"/>
@@ -111,7 +111,7 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
           </button>
         )}
       </div>
-      <p className={styles.hint}>由 OpenAI Agents SDK 驱动 · 仅供演示</p>
+      <p className={styles.hint}>Powered by OpenAI Agents SDK · Demo only</p>
     </div>
   );
 }
