@@ -5,14 +5,22 @@ import ToolIndicators from './components/ToolIndicators';
 import ChatWindow from './components/ChatWindow';
 import ChatInput from './components/ChatInput';
 import CodeViewer from './components/CodeViewer';
+import { I18nProvider, LangToggle, useT, MessageKeys } from './i18n';
 import styles from './App.module.css';
 
-const INITIAL_LAMPS: ToolLampState[] = [
-  { id: 'get_weather',         label: 'Weather', icon: '☀️', active: false, animKey: 0 },
-  { id: 'get_clothing_advice', label: 'Clothing', icon: '👔', active: false, animKey: 0 },
-  { id: 'translate_text',      label: 'Translate', icon: '🌐', active: false, animKey: 0 },
-  { id: 'text_statistics',     label: 'Statistics', icon: '📊', active: false, animKey: 0 },
-];
+const LAMP_IDS = ['get_weather', 'get_clothing_advice', 'translate_text', 'text_statistics'] as const;
+const LAMP_ICONS: Record<string, string> = {
+  get_weather: '☀️',
+  get_clothing_advice: '👔',
+  translate_text: '🌐',
+  text_statistics: '📊',
+};
+const LAMP_I18N_KEYS: Record<string, string> = {
+  get_weather: 'tool.weather',
+  get_clothing_advice: 'tool.clothing',
+  translate_text: 'tool.translate',
+  text_statistics: 'tool.statistics',
+};
 
 const CONVERSATION_ID_STORAGE_KEY = 'eo_conversation_id';
 
@@ -29,14 +37,44 @@ function getOrCreateConversationId(): string {
 let _historyFetchInFlight = false;
 
 export default function App() {
+  return (
+    <I18nProvider>
+      <LangToggle />
+      <AppInner />
+    </I18nProvider>
+  );
+}
+
+function AppInner() {
+  const { t } = useT();
+  const buildLamps = useCallback((): ToolLampState[] =>
+    LAMP_IDS.map(id => ({
+      id,
+      label: t(LAMP_I18N_KEYS[id] as MessageKeys),
+      icon: LAMP_ICONS[id],
+      active: false,
+      animKey: 0,
+    })),
+  [t]);
+
   const [messages, setMessages] = useState<Message[]>([]);
-  const [lamps, setLamps]       = useState<ToolLampState[]>(INITIAL_LAMPS);
+  const [lamps, setLamps]       = useState<ToolLampState[]>(buildLamps);
   const [loading, setLoading]   = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
 
   const botMsgIdRef = useRef<string>('');
   const abortCtrlRef = useRef<AbortController | null>(null);
   const conversationIdRef = useRef<string>(getOrCreateConversationId());
+
+  // Update lamp labels when language changes
+  useEffect(() => {
+    setLamps(prev =>
+      prev.map(l => ({
+        ...l,
+        label: t(LAMP_I18N_KEYS[l.id] as MessageKeys),
+      }))
+    );
+  }, [t]);
 
   useEffect(() => {
     if (_historyFetchInFlight) return;
@@ -111,13 +149,13 @@ export default function App() {
       onDone: finishStream,
 
       onError() {
-        updateBotMessage(content => content || 'Request failed. Please check if the backend service is running.');
+        updateBotMessage(content => content || t("status.error"));
         finishStream();
       },
     }, conversationIdRef.current);
 
     abortCtrlRef.current = ctrl;
-  }, [updateBotMessage, finishStream]);
+  }, [updateBotMessage, finishStream, t]);
 
   const handleClearHistory = useCallback(() => {
     localStorage.removeItem(CONVERSATION_ID_STORAGE_KEY);
@@ -135,16 +173,16 @@ export default function App() {
     }
 
     // 2. Optimistic UI: show stopped immediately without waiting for backend
-    updateBotMessage(content => content ? content + '\n\n⏹ *Generation stopped*' : '⏹ *Generation stopped*');
+    updateBotMessage(content => content ? content + '\n\n' + t("status.stopped") : t("status.stopped"));
     setLoading(false);
 
     // 3. Backend abort async — notify user on failure
     stopAgent(conversationIdRef.current).then(ok => {
       if (!ok) {
-        updateBotMessage(content => content + '\n\n Backend abort request failed. The server may still be running.');
+        updateBotMessage(content => content + '\n\n' + t("status.backendError"));
       }
     });
-  }, [updateBotMessage]);
+  }, [updateBotMessage, t]);
 
   return (
     <div className={styles.shell}>
@@ -162,8 +200,8 @@ export default function App() {
             <div className={styles.headerLeft}>
               <span className={styles.logo}>⬡</span>
               <div>
-                <p className={styles.title}>Agent Chat</p>
-                <p className={styles.subtitle}>Running on EdgeOne Pages with session memory & Agent Tools</p>
+                <p className={styles.title}>{t("app.title")}</p>
+                <p className={styles.subtitle}>{t("app.subtitle")}</p>
               </div>
             </div>
             <ToolIndicators lamps={lamps} />

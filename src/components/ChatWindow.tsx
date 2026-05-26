@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Message } from '../types';
+import { useT } from '../i18n';
 import ChatBubble from './ChatBubble';
 import styles from './ChatWindow.module.css';
 
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function ChatWindow({ messages, loading }: Props) {
+  const { t } = useT();
   const windowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,12 +28,12 @@ export default function ChatWindow({ messages, loading }: Props) {
       {messages.length === 0 && (
         <div className={styles.empty}>
           <span className={styles.emptyIcon}>⬡</span>
-          <p className={styles.emptyTitle}>OpenAI Agents Starter</p>
+          <p className={styles.emptyTitle}>{t("empty.title")}</p>
           <p className={styles.emptyHint}>
-            I'm an OpenAI Agent running on EdgeOne with custom tools and session memory. I can help with weather, clothing advice, translation, and text statistics.
+            {t("empty.hint")}
           </p>
           <p className={styles.emptyFeatures}>
-            EdgeOne Store · Session Memory · Agent Tools
+            {t("empty.features")}
           </p>
         </div>
       )}

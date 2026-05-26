@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, KeyboardEvent } from 'react';
+import { useT, MessageKeys } from '../i18n';
 import styles from './ChatInput.module.css';
 
 interface Props {
@@ -8,12 +9,10 @@ interface Props {
   disabled: boolean;
 }
 
-const PRESETS = [
-  'What is the weather like in Beijing now? Any clothing suggestions?',
-  'Translate "Hello, welcome to Beijing!" into English and count the characters.',
-];
+const PRESET_KEYS: MessageKeys[] = ['preset.1', 'preset.2'];
 
 export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) {
+  const { t } = useT();
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -49,14 +48,14 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
   return (
     <div className={styles.bar}>
       <div className={styles.presets}>
-        {PRESETS.map(text => (
+        {PRESET_KEYS.map(key => (
           <button
-            key={text}
+            key={key}
             className={styles.presetChip}
-            onClick={() => handlePreset(text)}
+            onClick={() => handlePreset(t(key))}
             disabled={disabled}
           >
-            {text}
+            {t(key)}
           </button>
         ))}
       </div>
@@ -65,7 +64,7 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
         <textarea
           ref={textareaRef}
           className={styles.textarea}
-          placeholder="Type a message...  ⏎ Send · Shift+⏎ Newline"
+          placeholder={t("chat.placeholder")}
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -111,7 +110,7 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
           </button>
         )}
       </div>
-      <p className={styles.hint}>Powered by OpenAI Agents SDK · Demo only</p>
+      <p className={styles.hint}>{t("chat.hint")}</p>
     </div>
   );
 }
