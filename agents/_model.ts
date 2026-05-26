@@ -11,7 +11,6 @@ import { OpenAIChatCompletionsModel } from '@openai/agents';
 type RuntimeEnv = Record<string, string | undefined>;
 
 export function createLlmModel(env: RuntimeEnv) {
-  console.log('[debug] createLlmModel called', env);
   const llmClient = new OpenAI({
     apiKey:  env.AI_GATEWAY_API_KEY,
     baseURL: env.AI_GATEWAY_BASE_URL,
