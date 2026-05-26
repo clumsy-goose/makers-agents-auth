@@ -34,3 +34,6 @@ __pycache__/
 
 # Local backups
 agents-backup/
+
+# AI assistant local instructions
+CLAUDE.md
