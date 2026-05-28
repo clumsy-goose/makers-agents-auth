@@ -5,7 +5,7 @@
  * File path agents/history/index.ts maps to **POST /history**
  *
  * Reads conversation history from ctx.store for the given
- * pages-agent-conversation-id and returns it to the frontend
+ * makers-conversation-id and returns it to the frontend
  * for restoring the chat window after a page refresh.
  *
  * Two-pass filtering (mirrors the Python agents/history/index.py):
