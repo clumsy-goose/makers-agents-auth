@@ -1,11 +1,11 @@
 /**
- * Agent handler — EdgeOne Pages Functions
+ * Agent handler — EdgeOne Makers
  * ========================================
  *
  * File path agents/chat/index.ts maps to **POST /chat**
- * (EdgeOne Pages Functions routing convention: directory name = route, index = default entry)
+ * (EdgeOne Makers routing convention: directory name = route, index = default entry)
  *
- * Files starting with _ (e.g. _model.ts, _tools.ts, _sse.ts) are private modules,
+ * Files starting with _ (e.g. _tools.ts, _sse.ts) are private modules,
  * not mapped as public routes.
  *
  * context convention:
@@ -16,7 +16,7 @@
  */
 
 import OpenAI from 'openai';
-import { run, Agent,OpenAIChatCompletionsModel, type Session } from '@openai/agents';
+import { run, Agent, OpenAIChatCompletionsModel, type Session } from '@openai/agents';
 import { createLogger } from '../_logger';
 import { createTools } from '../_tools';
 import { sseResponse } from '../_sse';
@@ -39,13 +39,16 @@ export async function onRequest(context: any) {
   const session: Session | undefined =
     context.store && context.conversationId ? context.store.openaiSession(context.conversationId) : undefined;
 
-  // Use build-in LLM model
+  // Configure the OpenAI-compatible LLM model directly from runtime env.
   const env = (context.env ?? {}) as Record<string, string | undefined>;
   const llmClient = new OpenAI({
     apiKey: env.AI_GATEWAY_API_KEY,
     baseURL: env.AI_GATEWAY_BASE_URL,
   });
-  const model = new OpenAIChatCompletionsModel(llmClient, env.AI_GATE_MODEL ?? DEFAULT_MODEL);
+  const model = new OpenAIChatCompletionsModel(
+    llmClient,
+    env.AI_GATEWAY_MODEL ?? DEFAULT_MODEL,
+  );
 
   // Create OpenAI Agent
   const agent = new Agent({

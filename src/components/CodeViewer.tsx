@@ -53,8 +53,8 @@ export default function CodeViewer() {
             <Kw t="from " /><Str t="'zod'" /><Op t=";" />
           </L>
           <L n={3}>
-            <Kw t="import " /><Op t="{ " /><Fn t="createLlmModel" /><Op t=" } " />
-            <Kw t="from " /><Str t="'./_model'" /><Op t=";" />
+            <Kw t="import " /><Va t="OpenAI" />
+            <Kw t=" from " /><Str t="'openai'" /><Op t=";" />
           </L>
           <L n={4} />
 
@@ -173,7 +173,7 @@ export default function CodeViewer() {
             <I2 /><Va t="instructions" /><Op t=": " /><Va t="INSTRUCTIONS" /><Op t="," />
           </L>
           <L n={41}>
-            <I2 /><Va t="model" /><Op t=": " /><Fn t="createLlmModel" /><Op t="(" /><Va t="context" /><Op t="." /><Va t="env" /><Op t=")," />
+            <I2 /><Va t="model" /><Op t=": " /><Kw t="new " /><Fn t="OpenAIChatCompletionsModel" /><Op t="(" /><Va t="llmClient" /><Op t=", " /><Va t="modelName" /><Op t=")," />
           </L>
           <L n={42}>
             <I2 /><Va t="tools" /><Op t="," />

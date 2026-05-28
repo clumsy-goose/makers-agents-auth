@@ -1,6 +1,6 @@
 # OpenAI Agents Starter
 
-基于 OpenAI Agents SDK (TypeScript) 的 EdgeOne Pages Agent 全栈项目模板。演示如何构建一个支持流式聊天、自定义工具、会话记忆和工具指示灯的 Agent。
+基于 OpenAI Agents SDK (TypeScript) 的 EdgeOne Makers Agent 全栈项目模板。演示如何构建一个支持流式聊天、自定义工具、会话记忆和工具指示灯的 Agent。
 
 ## 功能
 
@@ -14,14 +14,13 @@
 
 ```text
 openAI-agent-starter/
-├── agents/                        # Node/TS 后端（EdgeOne Pages Functions）
+├── agents/                        # Node/TS 后端（EdgeOne Makers）
 │   ├── chat/
 │   │   └── index.ts              # POST /chat — SSE 流式聊天
 │   ├── history/
 │   │   └── index.ts              # POST /history — 对话历史
 │   ├── stop/
 │   │   └── index.ts              # POST /stop — 中断 agent
-│   ├── _model.ts                 # LLM 模型配置（私有模块）
 │   ├── _logger.ts                # 日志工具（私有模块）
 │   └── _tools.ts                 # Agent 工具定义（私有模块）
 ├── src/                           # React 前端（Vite + TypeScript）
@@ -74,7 +73,7 @@ event: done           data: {"stopped":false}
 
 ### 后端（`agents/`）
 
-1. **`createLlmModel(context.env)`** — 从环境配置创建 OpenAI Agents SDK 模型
+1. **在 `agents/chat/index.ts` 内联 LLM 模型配置** — 从环境配置创建 OpenAI Agents SDK 模型
 2. **`createTools()`** — 返回自定义 Agent 工具列表（天气、穿衣、翻译、统计）
 3. **`context.store.openaiSession(conversationId)`** — 提供 session 持久化，用于多轮对话记忆
 4. **`run(agent, message, { session, stream, signal })`** — 启动 Agent 并流式输出
@@ -94,5 +93,5 @@ event: done           data: {"stopped":false}
 npm install
 
 # 启动 EdgeOne 本地开发（前后端同时启动）
-edgeone pages dev
+edgeone makers dev
 ```

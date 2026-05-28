@@ -1,6 +1,6 @@
 # OpenAI Agents Starter
 
-A full-stack EdgeOne Pages Agent template powered by the OpenAI Agents SDK (TypeScript). Demonstrates how to build a streaming chat Agent with custom tools, session memory, and real-time tool indicators.
+A full-stack EdgeOne Makers Agent template powered by the OpenAI Agents SDK (TypeScript). Demonstrates how to build a streaming chat Agent with custom tools, session memory, and real-time tool indicators.
 
 ## Features
 
@@ -14,14 +14,13 @@ A full-stack EdgeOne Pages Agent template powered by the OpenAI Agents SDK (Type
 
 ```text
 openAI-agent-starter/
-├── agents/                        # Node/TS backend (EdgeOne Pages Functions)
+├── agents/                        # Node/TS backend (EdgeOne Makers)
 │   ├── chat/
 │   │   └── index.ts              # POST /chat — SSE streaming chat
 │   ├── history/
 │   │   └── index.ts              # POST /history — conversation history
 │   ├── stop/
 │   │   └── index.ts              # POST /stop — abort active run
-│   ├── _model.ts                 # LLM model config (private module)
 │   ├── _logger.ts                # Logger utility (private module)
 │   └── _tools.ts                 # Agent tool definitions (private module)
 ├── src/                           # React frontend (Vite + TypeScript)
@@ -74,7 +73,7 @@ event: done           data: {"stopped":false}
 
 ### Backend (`agents/`)
 
-1. **`createLlmModel(context.env)`** — Creates OpenAI Agents SDK model from environment config
+1. **Inline LLM model config in `agents/chat/index.ts`** — Creates OpenAI Agents SDK model from environment config
 2. **`createTools()`** — Returns the list of custom Agent tools (weather, clothing, translate, statistics)
 3. **`context.store.openaiSession(conversationId)`** — Provides session persistence for multi-turn memory
 4. **`run(agent, message, { session, stream, signal })`** — Launches the Agent with streaming output
@@ -94,5 +93,5 @@ event: done           data: {"stopped":false}
 npm install
 
 # Start EdgeOne local dev (frontend + backend)
-edgeone pages dev
+edgeone makers dev
 ```

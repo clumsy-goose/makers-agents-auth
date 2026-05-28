@@ -1,10 +1,9 @@
 /**
- * Backend API (EdgeOne Pages Functions)
+ * Backend API (EdgeOne Makers)
  *
  * Route mapping (file → route):
  *   agents/chat/index.ts    → POST /chat          Main chat endpoint
  *   agents/stop/index.ts    → POST /stop          Abort the active agent run
- *   agents/chat/_model.ts   → (private, not mapped) AI Gateway / model config
  *
  * This file defines all API paths and request wrappers.
  */
