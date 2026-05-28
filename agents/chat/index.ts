@@ -11,7 +11,7 @@
  * context convention:
  *   context.request.body    — object, request body
  *   context.request.signal  — AbortSignal, set when /chat/stop is called
- *   context.conversation_id — conversation ID
+ *   context.conversationId — conversation ID
  *   context.runId           — current run ID
  */
 
