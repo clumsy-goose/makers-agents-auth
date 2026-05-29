@@ -11,7 +11,7 @@
  * context convention:
  *   context.request.body    — object, request body
  *   context.request.signal  — AbortSignal, set when /chat/stop is called
- *   context.conversationId — conversation ID
+ *   conversation_id — conversation ID
  *   context.runId           — current run ID
  */
 
@@ -37,7 +37,7 @@ export async function onRequest(context: any) {
 
   // Use built-in store session adapter for persistence
   const session: Session | undefined =
-    context.store && context.conversationId ? context.store.openaiSession(context.conversationId) : undefined;
+    context.store && context.conversation_id ? context.store.openaiSession(context.conversation_id) : undefined;
 
   // Configure the OpenAI-compatible LLM model directly from runtime env.
   const env = (context.env ?? {}) as Record<string, string | undefined>;

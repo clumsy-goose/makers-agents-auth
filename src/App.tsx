@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Message, ToolLampState } from './types';
 import { fetchConversationHistory, sendMessageStream, stopAgent } from './api';
+import type { RawSseEvent } from './api';
 import ToolIndicators from './components/ToolIndicators';
 import ChatWindow from './components/ChatWindow';
 import ChatInput from './components/ChatInput';
+import DebugPanel from './components/DebugPanel';
 import CodeViewer from './components/CodeViewer';
 import { I18nProvider, LangToggle, useT, MessageKeys } from './i18n';
 import styles from './App.module.css';
@@ -67,6 +69,8 @@ function AppInner() {
   const [lamps, setLamps]       = useState<ToolLampState[]>(buildLamps);
   const [loading, setLoading]   = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [debugEvents, setDebugEvents] = useState<RawSseEvent[]>([]);
+  const [rightPanelMode, setRightPanelMode] = useState<'code' | 'debug'>('code');
 
   const botMsgIdRef = useRef<string>('');
   const abortCtrlRef = useRef<AbortController | null>(null);
@@ -119,6 +123,8 @@ function AppInner() {
   }, []);
 
   const handleSend = useCallback(async (text: string) => {
+    setRightPanelMode('debug');
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -158,6 +164,11 @@ function AppInner() {
         }, 1000);
       },
 
+      onRawEvent(event) {
+        setRightPanelMode('debug');
+        setDebugEvents(prev => [...prev, event]);
+      },
+
       onDone: finishStream,
 
       onError() {
@@ -170,11 +181,19 @@ function AppInner() {
   }, [updateBotMessage, finishStream, t]);
 
   const handleClearHistory = useCallback(() => {
+    if (abortCtrlRef.current) {
+      abortCtrlRef.current.abort();
+      abortCtrlRef.current = null;
+    }
+
     localStorage.removeItem(CONVERSATION_ID_STORAGE_KEY);
     const newId = crypto.randomUUID();
     localStorage.setItem(CONVERSATION_ID_STORAGE_KEY, newId);
     conversationIdRef.current = newId;
     setMessages([]);
+    setDebugEvents([]);
+    setRightPanelMode('code');
+    setLoading(false);
   }, []);
 
   const handleStop = useCallback(() => {
@@ -224,7 +243,11 @@ function AppInner() {
         </div>
 
         <div className={styles.codePanel}>
-          <CodeViewer />
+          {rightPanelMode === 'code' ? (
+            <CodeViewer />
+          ) : (
+            <DebugPanel events={debugEvents} onClear={() => setDebugEvents([])} />
+          )}
         </div>
       </div>
     </div>
