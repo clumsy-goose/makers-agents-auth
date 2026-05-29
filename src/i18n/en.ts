@@ -28,7 +28,7 @@ const en = {
   "status.backendError": "Backend abort request failed. The server may still be running.",
 
   // Debug panel
-  "debug.title": "SSE Debug",
+  "debug.title": "Trace",
   "debug.events": "events",
   "debug.clear": "Clear",
   "debug.empty": "Waiting for SSE events...",

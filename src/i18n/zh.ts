@@ -28,7 +28,7 @@ const zh = {
   "status.backendError": "后端中止请求失败，服务器可能仍在运行。",
 
   // Debug panel
-  "debug.title": "SSE 调试",
+  "debug.title": "传输流",
   "debug.events": "事件",
   "debug.clear": "清除",
   "debug.empty": "等待 SSE 事件...",
