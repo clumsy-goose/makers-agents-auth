@@ -207,6 +207,7 @@ function AppInner() {
       },
 
       onRawEvent(event) {
+        if (event.eventType === 'text_delta') return;
         setRightPanelMode('debug');
         setDebugEvents(prev => [...prev, event]);
       },
