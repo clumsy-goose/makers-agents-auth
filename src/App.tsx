@@ -8,6 +8,7 @@ import ChatInput from './components/ChatInput';
 import DebugPanel from './components/DebugPanel';
 import CodeViewer from './components/CodeViewer';
 import { I18nProvider, LangToggle, useT, MessageKeys } from './i18n';
+import { deleteSnapshot, loadSnapshot, saveSnapshot } from './lib/chatUiStore';
 import styles from './App.module.css';
 
 const LAMP_IDS = ['get_weather', 'get_clothing_advice', 'translate_text', 'text_statistics'] as const;
@@ -74,7 +75,10 @@ function AppInner() {
 
   const botMsgIdRef = useRef<string>('');
   const abortCtrlRef = useRef<AbortController | null>(null);
+  const hadExistingConversationIdRef = useRef(getExistingConversationId() !== null);
   const conversationIdRef = useRef<string>(getOrCreateConversationId());
+  const initDoneRef = useRef(false);
+  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Update lamp labels when language changes
   useEffect(() => {
@@ -87,22 +91,59 @@ function AppInner() {
   }, [t]);
 
   useEffect(() => {
+    if (messages.length === 0) return;
+    if (!initDoneRef.current) return;
+
+    if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+    snapshotTimerRef.current = setTimeout(() => {
+      saveSnapshot(conversationIdRef.current, messages).catch(err => {
+        console.warn('[chatUiStore] snapshot save failed:', err);
+      });
+    }, 500);
+
+    return () => {
+      if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current);
+    };
+  }, [messages]);
+
+  useEffect(() => {
     // First visit: no existing conversation → skip history fetch for instant load
-    if (!getExistingConversationId()) {
+    if (!hadExistingConversationIdRef.current) {
       setHistoryLoading(false);
       return;
     }
 
-    if (_historyFetchInFlight) return;
+    const convId = conversationIdRef.current;
+    let restoredFromSnapshot = false;
+    let snapshotMessageCount = 0;
+
+    const restoreSnapshot = () => loadSnapshot(convId).then(snapshot => {
+      snapshotMessageCount = snapshot.length;
+      if (snapshot.length > 0) {
+        restoredFromSnapshot = true;
+        setMessages(snapshot);
+        setHistoryLoading(false);
+      }
+    }).catch(() => {});
+
+    if (_historyFetchInFlight) {
+      restoreSnapshot().finally(() => setHistoryLoading(false));
+      return;
+    }
     _historyFetchInFlight = true;
 
-    fetchConversationHistory(conversationIdRef.current).then(history => {
-      if (history.length > 0) {
-        setMessages(history);
-      }
-    }).finally(() => {
-      _historyFetchInFlight = false;
-      setHistoryLoading(false);
+    restoreSnapshot().finally(() => {
+      fetchConversationHistory(convId).then(history => {
+        if (history.length > 0) {
+          if (!restoredFromSnapshot || history.length > snapshotMessageCount) {
+            setMessages(history);
+          }
+          saveSnapshot(convId, history).catch(() => {});
+        }
+      }).finally(() => {
+        _historyFetchInFlight = false;
+        setHistoryLoading(false);
+      });
     });
   }, []);
 
@@ -123,6 +164,7 @@ function AppInner() {
   }, []);
 
   const handleSend = useCallback(async (text: string) => {
+    initDoneRef.current = true;
     setRightPanelMode('debug');
 
     const userMsg: Message = {
@@ -186,6 +228,9 @@ function AppInner() {
       abortCtrlRef.current = null;
     }
 
+    const oldConvId = conversationIdRef.current;
+    deleteSnapshot(oldConvId).catch(() => {});
+
     localStorage.removeItem(CONVERSATION_ID_STORAGE_KEY);
     const newId = crypto.randomUUID();
     localStorage.setItem(CONVERSATION_ID_STORAGE_KEY, newId);
@@ -194,6 +239,7 @@ function AppInner() {
     setDebugEvents([]);
     setRightPanelMode('code');
     setLoading(false);
+    initDoneRef.current = false;
   }, []);
 
   const handleStop = useCallback(() => {
@@ -222,11 +268,6 @@ function AppInner() {
 
       <div className={styles.stage}>
         <div className={styles.chatPanel}>
-          {historyLoading && messages.length === 0 && (
-            <div className={styles.historyOverlay}>
-              <div className={styles.historySpinner} />
-            </div>
-          )}
           <header className={styles.header}>
             <div className={styles.headerLeft}>
               <span className={styles.logo}>⬡</span>
@@ -238,7 +279,14 @@ function AppInner() {
             <ToolIndicators lamps={lamps} />
           </header>
 
-          <ChatWindow messages={messages} loading={loading} />
+          <div className={styles.chatWindowShell}>
+            <ChatWindow messages={messages} loading={loading} />
+            {historyLoading && messages.length === 0 && (
+              <div className={styles.historyOverlay}>
+                <div className={styles.historySpinner} />
+              </div>
+            )}
+          </div>
           <ChatInput onSend={handleSend} onStop={handleStop} onClear={handleClearHistory} disabled={loading} />
         </div>
 
