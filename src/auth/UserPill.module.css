@@ -1,0 +1,218 @@
+/* ============================================================================
+ * UserPill.module.css
+ * --------------------------------------------------------------------------
+ * 头部右侧用户徽章 + 展开下拉面板。
+ * 视觉:与 LangToggle 同一档量级,深色磨砂玻璃 + 金色 accent 脉冲点。
+ * ========================================================================== */
+
+.wrap {
+  position: fixed;
+  top: 12px;
+  right: 18px;
+  z-index: 1000;       /* 与 LangToggle 同层,但因 DOM 顺序 LangToggle 在前会被它压住 — 这里改成 1001 */
+  z-index: 1001;
+}
+
+/* ── 主按钮(徽章) ─────────────────────────────────────── */
+
+.pill {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  transition: background 200ms, color 200ms, border-color 200ms, transform 140ms;
+}
+.pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(245, 200, 66, 0.24);
+}
+.pill:active {
+  transform: translateY(1px);
+}
+.pill[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(245, 200, 66, 0.4);
+}
+
+.avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-gold), #b89028);
+  color: #1a1108;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.username {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3ecf8e;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.55);
+  animation: pulse 2.4s ease-out infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.5); }
+  60%  { box-shadow: 0 0 0 10px rgba(62, 207, 142, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0); }
+}
+
+/* ── 展开面板 ───────────────────────────────────────────── */
+
+.menuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1002;       /* 在 pill 之上,但可被 pill click 穿透前关掉 */
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 300px;
+  z-index: 1003;
+  background: rgba(17, 17, 24, 0.94);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 38px -10px rgba(0, 0, 0, 0.55);
+  border-radius: 14px;
+  padding: 16px;
+  animation: menuIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.menuTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.menuAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-gold), #b89028);
+  color: #1a1108;
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.menuUserMain {
+  flex: 1;
+  min-width: 0;
+}
+.menuUserPrimary {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menuUserSecondary {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.menuMeta {
+  margin: 14px 0 4px;
+  display: grid;
+  gap: 10px;
+}
+.metaRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.metaLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+.metaValue {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  text-align: right;
+  word-break: break-all;
+  max-width: 70%;
+}
+.metaValue strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.signOut {
+  appearance: none;
+  margin-top: 14px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 11px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 200ms, color 200ms, border-color 200ms, transform 140ms;
+}
+.signOut:hover {
+  background: rgba(185, 74, 74, 0.18);
+  border-color: rgba(185, 74, 74, 0.4);
+  color: #ffb6b6;
+}
+.signOut:active { transform: translateY(1px); }
+.signOut svg { width: 14px; height: 14px; }

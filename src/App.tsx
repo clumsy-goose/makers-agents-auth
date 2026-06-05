@@ -9,6 +9,10 @@ import DebugPanel from './components/DebugPanel';
 import CodeViewer from './components/CodeViewer';
 import { I18nProvider, LangToggle, useT, MessageKeys } from './i18n';
 import { deleteSnapshot, loadSnapshot, saveSnapshot } from './lib/chatUiStore';
+import AuthGate from './auth/AuthGate';
+import UserPill from './auth/UserPill';
+import WelcomeFlash from './auth/WelcomeFlash';
+import AuthChainTrace from './auth/AuthChainTrace';
 import styles from './App.module.css';
 
 const LAMP_IDS = ['get_weather', 'get_clothing_advice', 'translate_text', 'text_statistics'] as const;
@@ -49,7 +53,15 @@ export default function App() {
   return (
     <I18nProvider>
       <LangToggle />
-      <AppInner />
+      <AuthGate>
+        {(user, signOut) => (
+          <>
+            <UserPill user={user} onSignOut={signOut} />
+            <WelcomeFlash />
+            <AppInner />
+          </>
+        )}
+      </AuthGate>
     </I18nProvider>
   );
 }
@@ -287,6 +299,9 @@ function AppInner() {
                 <div className={styles.historySpinner} />
               </div>
             )}
+          </div>
+          <div className={styles.traceShell}>
+            <AuthChainTrace />
           </div>
           <ChatInput onSend={handleSend} onStop={handleStop} onClear={handleClearHistory} disabled={loading} />
         </div>

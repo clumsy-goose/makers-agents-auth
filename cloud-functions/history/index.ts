@@ -22,6 +22,7 @@
  */
 
 import { createLogger } from '../_logger';
+import { requireAuth, AuthError, unauthorizedResponse } from '../_jwt';
 
 const logger = createLogger('history');
 
@@ -100,6 +101,17 @@ function contentToText(content: unknown): string {
 // ── Handler ─────────────────────────────────────────────────
 
 export async function onRequestPost(context: any): Promise<Response> {
+  // 双层防御:cf 入口独立验签,与 mw 不耦合
+  try {
+    requireAuth(context);
+  } catch (e) {
+    if (e instanceof AuthError) {
+      logger.log(`[auth] reject: ${e.reason}`);
+      return unauthorizedResponse(e.reason);
+    }
+    throw e;
+  }
+
   const requestStartTime = Date.now();
   logger.log(`[history] start: ${new Date(requestStartTime).toISOString()}`);
 

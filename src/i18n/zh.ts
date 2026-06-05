@@ -36,6 +36,92 @@ const zh = {
 
   // Language toggle
   "lang.switch": "English",
+
+  // Auth screen — left panel
+  "auth.brand": "OpenAI Agent · Edge",
+  "auth.eyebrow": "Pages Agent · 鉴权方案一",
+  "auth.headline.lead": "一道边缘",
+  "auth.headline.accent": "身份",
+  "auth.headline.tail": "之门",
+  "auth.deck": "EdgeOne 中间件在节点早拒,cloud-functions 走 Neon Postgres 完成登录注册,Agent Runtime 用同一个密钥独立验签 — 双层防御铁律,不依赖任何上游 header。",
+  "auth.signal.edge": "边缘节点",
+  "auth.signal.db": "Postgres",
+  "auth.signal.hash": "哈希",
+  "auth.signal.token": "令牌",
+
+  // Auth screen — tabs / forms
+  "auth.tab.login": "登录",
+  "auth.tab.register": "注册",
+  "auth.login.title": "欢迎回来",
+  "auth.login.hint": "输入账号继续上次对话。",
+  "auth.login.submit": "登录",
+  "auth.login.swap.q": "还没账号?",
+  "auth.login.swap.cta": "立即注册",
+  "auth.register.title": "创建账号",
+  "auth.register.hint": "3-32 位用户名 · 8-72 位密码,即注即用。",
+  "auth.register.submit": "注册并登录",
+  "auth.register.swap.q": "已有账号?",
+  "auth.register.swap.cta": "去登录",
+  "auth.field.username": "USERNAME",
+  "auth.field.password": "PASSWORD",
+  "auth.field.username.placeholder": "alice_42",
+  "auth.field.password.helper": "至少 8 位 · bcrypt 10 轮哈希存储",
+  "auth.password.show": "显示密码",
+  "auth.password.hide": "隐藏密码",
+  "auth.submit.busy": "处理中…",
+
+  // Auth — errors
+  "auth.error.empty": "请填写用户名和密码",
+  "auth.err.invalid_credentials": "用户名或密码不正确",
+  "auth.err.username_taken": "该用户名已被注册",
+  "auth.err.invalid_username": "用户名格式不合法(3-32 位,允许字母/数字/下划线/连字符)",
+  "auth.err.invalid_password": "密码长度需在 8-72 之间",
+  "auth.err.bad_request": "请求格式错误",
+  "auth.err.db_error": "数据库暂不可达,请稍后重试",
+  "auth.err.server_misconfigured": "服务端未配置 JWT_SECRET",
+  "auth.err.auth_required": "会话已失效,请重新登录",
+  "auth.err.unknown": "未知错误",
+
+  // Welcome flash (登录后链路激活动画)
+  "welcome.title.login": "欢迎回来",
+  "welcome.title.register": "账号已创建",
+  "welcome.subtitle": "方案一鉴权链路已激活 · 双层防御生效",
+  "welcome.chain.browser": "浏览器",
+  "welcome.chain.browser.note": "Cookie eo_token",
+  "welcome.chain.middleware": "Middleware",
+  "welcome.chain.middleware.note": "Web Crypto 早拒",
+  "welcome.chain.cf": "Cloud Function",
+  "welcome.chain.cf.note": "bcrypt + 签 JWT",
+  "welcome.chain.agent": "Agent Runtime",
+  "welcome.chain.agent.note": "node:crypto 自验签",
+  "welcome.dismiss": "关闭",
+
+  // User pill
+  "pill.expand": "展开账户菜单",
+  "pill.collapse": "收起账户菜单",
+  "pill.you": "已登录",
+  "pill.userId": "用户 ID",
+  "pill.token": "JWT",
+  "pill.token.value": "HS256 · HttpOnly Cookie",
+  "pill.expiresAt": "过期时间",
+  "pill.signout": "退出登录",
+
+  // Auth Chain Trace(每条消息发送时实时点亮)
+  "trace.title": "鉴权链路追踪",
+  "trace.idle": "空闲 · 发送消息以激活链路",
+  "trace.streaming": "Agent 流式输出中",
+  "trace.complete": "链路完成",
+  "trace.error": "链路中断",
+  "trace.node.browser": "浏览器",
+  "trace.node.browser.note": "Cookie 携带",
+  "trace.node.middleware": "Middleware",
+  "trace.node.middleware.note": "早拒",
+  "trace.node.agent": "Agent Runtime",
+  "trace.node.agent.note": "auth_ok 已确认",
+  "trace.node.neon": "Neon",
+  "trace.node.neon.note": "HTTPS · users 表",
+  "trace.node.response": "响应流",
+  "trace.node.response.note": "首字 token",
 } as const;
 
 export default zh;

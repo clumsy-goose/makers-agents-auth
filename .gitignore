@@ -39,3 +39,5 @@ agents-backup/
 # AI assistant local instructions
 CLAUDE.md
 AGENTS.md
+.agents/*
+.claude/*

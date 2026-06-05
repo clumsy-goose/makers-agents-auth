@@ -69,6 +69,24 @@
   position: relative;
 }
 
+/* AuthChainTrace 容器 — 嵌在 chatWindow 与 ChatInput 之间 */
+.traceShell {
+  flex: 0 0 auto;
+  padding: 8px 24px 0;
+}
+@media (max-width: 720px) {
+  .traceShell { padding: 8px 12px 0; }
+}
+
+/* AuthChainTrace 容器 — 嵌在 chatWindow 与 ChatInput 之间 */
+.traceShell {
+  flex: 0 0 auto;
+  padding: 8px 24px 0;
+}
+@media (max-width: 720px) {
+  .traceShell { padding: 8px 12px 0; }
+}
+
 .chatWindowShell {
   position: relative;
   flex: 1;

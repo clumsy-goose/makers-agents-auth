@@ -1,97 +1,186 @@
-# OpenAI Agents Starter
+# OpenAI Agents 鉴权模板 <!-- TODO: 确认中文展示名 -->
 
-基于 OpenAI Agents SDK (TypeScript) 的 EdgeOne Makers Agent 全栈项目模板。演示如何构建一个支持流式聊天、自定义工具、会话记忆和工具指示灯的 Agent。
+**语言：** [English](./README.md) | 简体中文
 
-## 功能
+> 基于 **OpenAI Agents SDK** 的流式聊天 Agent 模板,跑在 EdgeOne Makers 上 —— 内置端到端鉴权(边缘中间件 + cloud-functions + Agent 自验签 + Neon Postgres),前端实时可视化整条调用链路。
 
-- **SSE 流式聊天** — 逐 token 推送 `text_delta`，命中工具时推送 `tool_called`
-- **会话记忆** — 通过 EdgeOne `context.store.openaiSession()` 持久化多轮对话上下文
-- **自定义 Agent 工具** — get_weather、get_clothing_advice、translate_text、text_statistics
-- **停止生成** — 前端 `AbortController` + 后端 `AbortSignal` 双重取消机制，真正中断 LLM 调用
-- **工具灯状态** — 4 个动画指示灯，Agent 调用工具时实时点亮
+**框架：** OpenAI Agents SDK · **分类：** Chat <!-- TODO: 确认分类 --> · **语言：** TypeScript
 
-## 目录结构
+[![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/makers/new?template=makers-agent-auth&from=within&fromAgent=1&agentLang=typescript)
 
-```text
-openAI-agent-starter/
-├── agents/                        # Node/TS 后端（EdgeOne Makers）
-│   ├── chat/
-│   │   └── index.ts              # POST /chat — SSE 流式聊天
-│   ├── history/
-│   │   └── index.ts              # POST /history — 对话历史
-│   ├── stop/
-│   │   └── index.ts              # POST /stop — 中断 agent
-│   ├── _logger.ts                # 日志工具（私有模块）
-│   └── _tools.ts                 # Agent 工具定义（私有模块）
-├── src/                           # React 前端（Vite + TypeScript）
-│   ├── App.tsx                    # 主应用组件
-│   ├── api.ts                    # 后端 API 封装（SSE 流式调用）
-│   ├── types.ts                  # 类型定义
-│   └── components/               # UI 组件
-│       ├── ChatWindow.tsx        # 聊天窗口
-│       ├── ChatBubble.tsx        # 消息气泡（支持 Markdown）
-│       ├── ChatInput.tsx         # 输入框 + 预设 + 停止按钮
-│       ├── CodeViewer.tsx        # 代码展示面板（CRT 风格）
-│       ├── ToolIndicators.tsx    # 工具指示灯容器
-│       └── ToolLamp.tsx          # 单个工具指示灯
-├── index.html                    # 入口 HTML
-├── package.json                  # 项目依赖（含 @openai/agents）
-├── vite.config.ts                # Vite 配置
-├── tsconfig.json                 # TypeScript 配置
-└── .gitignore                    # Git 忽略规则
-```
+<!-- 推荐放一张运行截图或动图 -->
+<!-- TODO: 添加 ./assets/preview.png -->
 
-> 以 `_` 开头的文件是私有模块，不会被 EdgeOne 映射为公开路由。
+## 概述
+
+生产形态的聊天 Agent 模板,演示 EdgeOne Pages 上的**双层防御**鉴权方案:边缘节点 Web Crypto 早拒,Agent 运行时再用同一个密钥独立 HMAC 自验签 —— 即便有人绕过边缘节点直连内部路径,Agent 也会 401 拒绝。账号体系存在 Neon Postgres 中,经 HTTPS 访问;前端实时可视化整条请求链路。
+
+- **双层防御鉴权** — `middleware.js` 在边缘节点早拒,`agents/chat` 用同一个 `JWT_SECRET` 独立 HMAC 再验签
+- **SSE 流式聊天** — 基于 OpenAI Agents SDK 的 token 级流式输出 + 工具调用事件
+- **Neon Postgres over HTTPS** — `@neondatabase/serverless` 标签模板 SQL 自动参数化(防 SQLi),无 TCP 驱动,无数据库运维
+- **bcrypt 密码哈希** — 注册 / 登录 / me / 登出 cloud-functions 跑在 Node 20
+- **实时鉴权链路追踪** — 每条消息都点亮 5 节点流水线(浏览器 → 中间件 → Agent → Neon → 响应),带真实时延
+- **自定义工具 + 会话记忆 + 停止生成** — 完整的 Agent 原语全链路打通
 
 ## 环境变量
 
 | 变量 | 必填 | 说明 |
-|------|------|------|
-| `AI_GATEWAY_API_KEY` | 是 | LLM API 密钥 |
-| `AI_GATEWAY_BASE_URL` | 是 | LLM API 地址（OpenAI 兼容） |
-| `AI_GATEWAY_MODEL` | 否 | 模型名称（默认 `@makers/hy3-preview`） |
+|---|---|---|
+| `AI_GATEWAY_API_KEY` | 是 | 模型网关 API key,可用 **Makers Models API Key**,也可用任何 OpenAI 兼容厂商的 key |
+| `AI_GATEWAY_BASE_URL` | 是 | 网关地址。Makers Models 用 `https://ai-gateway.edgeone.link/v1` |
+| `AI_GATEWAY_MODEL` | 否 | 模型 ID,默认 `@makers/hy3-preview`(免费内置模型) |
+| `JWT_SECRET` | 是 | HMAC-SHA256 密钥,middleware / cloud-functions / Agent 三处共用同一个,各自独立验签。建议 ≥ 48 字节随机 |
+| `DATABASE_URL` | 是 | Neon Postgres HTTPS 连接串(`postgresql://...?sslmode=require`),用于登录 / 注册 / Agent profile 查询 |
+| `JWT_TTL_SECONDS` | 否 | JWT 过期秒数,默认 `86400`(1 天) |
+| `COOKIE_DOMAIN` | 否 | Cookie `Domain` 属性,仅当前端与 API 不同域时才需要设置 |
+| `EDGEONE_AGENT_LOCAL_IN_MEMORY_STORE` | 否 | **仅本地 dev** 用,设为 `1` 可绕过 Pages Blob 凭据,改用内存 store。生产部署**不要**设置 |
 
-## API 接口
+> 本模板基于 **OpenAI 兼容**标准 — `AI_GATEWAY_*` 可指向 Makers Models 或任何兼容网关 / 厂商。
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/chat` | POST | SSE 流式聊天，Header 带 `makers-conversation-id` |
-| `/stop` | POST | 中断正在执行的 agent，Body 传 `{ "conversation_id": "..." }` |
-| `/history` | POST | 获取对话历史，Header 带 `makers-conversation-id` |
+### 如何获取 `AI_GATEWAY_API_KEY`
 
-### SSE 事件
+1. 打开 [Makers 控制台](https://console.cloud.tencent.com/edgeone/makers)
+2. 登录并启用 Makers
+3. 进入 **Makers → 模型 → API Key**,创建一个 key
+4. 复制到 `AI_GATEWAY_API_KEY`(`AI_GATEWAY_BASE_URL` 设为 `https://ai-gateway.edgeone.link/v1`)
 
+内置模型(`@makers/deepseek-v4-flash` / `@makers/hy3-preview` / `@makers/minimax-m2.7`)免费且有配额,适合验证。生产请在控制台绑定自费厂商(BYOK)。
+
+### 如何配置 Neon Postgres
+
+1. 在 [neon.tech](https://neon.tech) 注册并新建项目(选离 EdgeOne 节点近的区域,如 AWS Singapore / Tokyo)
+2. 项目 Dashboard → 复制 **HTTP** 连接串(以 `postgresql://...` 开头、以 `?sslmode=require` 结尾),粘贴到 `DATABASE_URL`
+3. 在 Neon 的 SQL Editor 跑迁移(原文件在 `db/migrations/0001_users.sql`):
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pgcrypto;
+   CREATE TABLE IF NOT EXISTS users (
+     id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+     username      VARCHAR(64)  NOT NULL,
+     password_hash VARCHAR(255) NOT NULL,
+     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+   );
+   CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_uniq ON users (LOWER(username));
+   ```
+4. 验证连接:`node scripts/db-check.mjs`
+
+### 如何生成 `JWT_SECRET`
+
+```bash
+openssl rand -base64 48
+# 或
+node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 ```
-event: text_delta     data: {"delta":"你好"}
-event: tool_called    data: {"tool":"get_weather"}
-event: ping           data: {"ts":1710000000000}
-event: error          data: {"message":"..."}
-event: done           data: {"stopped":false}
-```
 
-## 架构
-
-### 后端（`agents/`）
-
-1. **在 `agents/chat/index.ts` 内联 LLM 模型配置** — 从环境配置创建 OpenAI Agents SDK 模型
-2. **`createTools()`** — 返回自定义 Agent 工具列表（天气、穿衣、翻译、统计）
-3. **`context.store.openaiSession(conversationId)`** — 提供 session 持久化，用于多轮对话记忆
-4. **`run(agent, message, { session, stream, signal })`** — 启动 Agent 并流式输出
-5. **SSE 输出** — 依次 yield `text_delta`、`tool_called`、`done`、`error` 事件
-
-### 前端（`src/`）
-
-- `App.tsx` — 编排聊天面板 + 代码查看器，管理 SSE 流
-- `api.ts` — SSE 解析，分发 `onTextDelta`、`onToolCalled`、`onDone`、`onError`
-- `components/CodeViewer.tsx` — 静态代码展示面板（琥珀 CRT 风格），展示 Agent 创建流程
-- `components/ToolIndicators.tsx` — 模型调用工具时的动画指示灯
+middleware / cloud-functions / Agent 三层都要配置**同一个**值,它们各自独立完成验签 —— 这就是双层防御铁律。
 
 ## 本地开发
 
-```bash
-# 安装依赖
-npm install
+**前置依赖：** Node.js, npm
 
-# 启动 EdgeOne 本地开发（前后端同时启动）
+```bash
+npm install
+cp .env.example .env
+# 填好 JWT_SECRET / DATABASE_URL / AI_GATEWAY_*
 edgeone makers dev
 ```
+
+打开 `http://localhost:8080/agent-metrics` 查看本地可观测面板。
+
+> 一条命令起整套服务 —— `edgeone makers dev` 会派生 Vite dev server 子进程,中间件 / cloud-functions / Agent 都挂在同一端口下。**不要**单独跑 `npm run dev`,Vite 单跑不会执行中间件,鉴权流程跑不通。
+
+## 项目结构
+
+```text
+makers-agent-auth/
+├── middleware.js                    # Edge V8 中间件 — Web Crypto HS256 早拒
+├── agents/
+│   ├── chat/index.ts                # POST /chat — Agent 自验签 + 读 Neon + LLM 流式
+│   ├── stop/index.ts                # POST /stop — 中止当前 run(需鉴权)
+│   ├── _jwt.ts                      # node:crypto JWT 验签(Agent 层)
+│   ├── _db.ts                       # Neon HTTPS 客户端(Agent 层)
+│   ├── _logger.ts
+│   ├── _sse.ts                      # SSE 响应辅助
+│   └── _tools.ts                    # 自定义工具(天气 / 翻译 / 文本统计…)
+├── cloud-functions/
+│   ├── auth/
+│   │   ├── login/index.ts           # POST /auth/login    — bcrypt 校验 + 签 JWT
+│   │   ├── register/index.ts        # POST /auth/register  — bcrypt 哈希 + 入库 + 签 JWT
+│   │   ├── me/index.ts              # GET  /auth/me        — 当前用户 + exp
+│   │   └── logout/index.ts          # POST /auth/logout    — 清 Cookie
+│   ├── history/index.ts             # POST /history        — 鉴权后的对话历史
+│   ├── _jwt.ts                      # node:crypto JWT 签发 / 验签(cf 层)
+│   ├── _db.ts                       # Neon HTTPS 客户端(cf 层)
+│   ├── _validate.ts                 # 用户名 / 密码格式校验
+│   └── _logger.ts
+├── db/migrations/
+│   └── 0001_users.sql               # users 表 schema
+├── src/                             # Vite + React 前端
+│   ├── auth/
+│   │   ├── AuthGate.tsx             # /login + /register 分屏 UI
+│   │   ├── UserPill.tsx             # 头部用户徽章 + 登出菜单
+│   │   ├── WelcomeFlash.tsx         # 登录后的链路激活提示
+│   │   └── AuthChainTrace.tsx       # 实时 5 节点链路可视化
+│   ├── components/                  # 聊天 UI 组件
+│   ├── i18n/                        # zh / en 文案
+│   └── api.ts                       # 浏览器 → 后端封装 + 401 拦截
+├── scripts/
+│   └── db-check.mjs                 # Neon 连接探测
+├── pages-agent-auth-flow.html       # 交互式架构图(任意浏览器打开)
+├── SETUP.md                         # 端到端部署清单
+├── edgeone.json                     # Agent runtime + cloud-functions 配置
+└── package.json
+```
+
+> 以 `_` 开头的文件是**私有模块**,EdgeOne 不会将它们映射为公开路由。
+
+## 工作原理
+
+本模板实现 **"中间件 + cloud-functions + Agent 自验签"** 鉴权方案(完整调用链路图见 `pages-agent-auth-flow.html`)。Agent 跑在 `agents/` 下的**会话模式**:相同 `Markers-Conversation-Id` 头的请求会被粘性路由到同一个 Agent 实例与 store。
+
+### 阶段一 · 注册 / 登录
+
+1. 浏览器 POST `{ username, password }` 到 `/auth/login` 或 `/auth/register`
+2. `middleware.js` 命中 `/auth/*` 白名单,直接 `next()` 透传(此时尚无 JWT)
+3. `cloud-functions/auth/{login,register}/index.ts`(Node 20)用 `@neondatabase/serverless` 读写 `users` 表 —— 标签模板 SQL 自动参数化(杜绝 SQLi)
+4. 密码用 **bcryptjs**(cost 10)校验或哈希
+5. **node:crypto** 用 `JWT_SECRET` 签 HS256 JWT
+6. 函数返回 `200 OK` + `Set-Cookie: eo_token=…; HttpOnly; Secure; SameSite=Lax`
+
+### 阶段二 · Agent 调用(携带 Cookie)
+
+1. 浏览器 POST `/chat`,带 `Cookie: eo_token=…` 与 `Markers-Conversation-Id: <uuid>` 请求头
+2. `middleware.js` 命中 `/chat` 受保护路径,用 **Web Crypto** HS256 验签。失败立即 `401`;成功 `next()` 透传,**不写任何 header** —— Agent 必须独立再验
+3. `agents/chat/index.ts` 入口调 `requireAuth(context)`,用 **node:crypto** HMAC 和**同一个** `JWT_SECRET` 独立验签。**这就是双层防御铁律**:即便有人绕过边缘,Agent 也会 401
+4. Agent 在流首帧 emit 一个 `auth_ok` SSE 事件,前端据此证明第二层验签生效
+5. Agent 用 JWT 里的 `sub` 通过 HTTPS 读 Neon 中的用户 profile,emit `neon_query_start` / `neon_query_done`(含行数、时延)
+6. profile 注入到 Agent 的 instructions,OpenAI Agents SDK 跑工具循环,以 `text_delta` SSE 事件流式返回
+7. 前端 `AuthChainTrace` 组件订阅这些信号,实时点亮 5 节点流水线(浏览器 → 中间件 → Agent → Neon → 响应)
+
+### 路由
+
+| 方法 | 路径 | 处理器 | 鉴权 |
+|---|---|---|---|
+| POST | `/auth/register` | `cloud-functions/auth/register` | 公开 |
+| POST | `/auth/login` | `cloud-functions/auth/login` | 公开 |
+| GET  | `/auth/me` | `cloud-functions/auth/me` | 需鉴权 |
+| POST | `/auth/logout` | `cloud-functions/auth/logout` | 公开 |
+| POST | `/chat` | `agents/chat` | 需鉴权 |
+| POST | `/stop` | `agents/stop` | 需鉴权 |
+| POST | `/history` | `cloud-functions/history` | 需鉴权 |
+
+### 运行参数
+
+`edgeone.json` 控制 Agent 超时(`agents.timeout`)与沙箱生命期(`agents.sandbox.timeout`),两者范围都是 300 ~ 3600 秒。
+
+## 相关链接
+
+- [Makers Agents 文档](https://edgeone.ai/document/agents)
+- [Quick Start: Agent 开发](https://edgeone.ai/document/agents-quickstart)
+- [Makers Models](https://edgeone.ai/document/models)
+- [Neon Postgres](https://neon.tech)
+- [架构图(交互式)](./pages-agent-auth-flow.html)
+- [部署清单](./SETUP.md)
+
+## License
+
+MIT

@@ -16,10 +16,19 @@
  */
 
 import { createLogger } from '../_logger';
+import { requireAuth, AuthError, unauthorizedResponse } from '../_jwt';
 
 const logger = createLogger('stop');
 
 export async function onRequest(context: any) {
+  // 双层防御:与 /chat 一样,Agent 入口必须独立验签
+  try {
+    requireAuth(context);
+  } catch (e) {
+    if (e instanceof AuthError) return unauthorizedResponse(e.reason);
+    throw e;
+  }
+
   const { request } = context;
   const conversationId = request?.body?.conversation_id as string | undefined;
 
