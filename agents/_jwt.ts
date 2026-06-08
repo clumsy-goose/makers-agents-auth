@@ -36,10 +36,16 @@ function hmac(secret: string, data: string): Buffer {
   return createHmac('sha256', secret).update(data).digest();
 }
 
+/**
+ * JWT 过期秒数 — 与 cloud-functions/_jwt.ts 保持一致(3 天)。
+ * Agent 这一层不签发 token,但保留导出常量以便复用。
+ */
+export const JWT_TTL_SECONDS = 3 * 24 * 60 * 60;
+
 export function signJwt(
   payload: { sub: string; username: string },
   secret: string,
-  ttlSec = 86400,
+  ttlSec = JWT_TTL_SECONDS,
 ): string {
   if (!secret) throw new Error('JWT_SECRET is required');
   const now = Math.floor(Date.now() / 1000);

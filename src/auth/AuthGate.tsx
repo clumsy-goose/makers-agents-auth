@@ -185,10 +185,6 @@ function AuthModal({ onAuthed, onClose }: AuthModalProps) {
           <XIcon />
         </button>
 
-        <span id="auth-modal-title" className={styles.modalEyebrow}>
-          {t('auth.modal.required')}
-        </span>
-
         <div className={styles.tabs} role="tablist">
           <button
             type="button"
@@ -359,7 +355,6 @@ function CredentialsForm({
             {showPassword ? <EyeOffIcon /> : <EyeIcon />}
           </button>
         </div>
-        <span className={styles.helper}>{t('auth.field.password.helper')}</span>
       </div>
 
       <button

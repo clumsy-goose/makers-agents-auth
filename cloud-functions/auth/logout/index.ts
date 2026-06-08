@@ -8,15 +8,13 @@ import { serializeCookie } from '../../_jwt';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=UTF-8' } as const;
 
-export async function onRequestPost(context: any): Promise<Response> {
-  const env = (context.env ?? {}) as Record<string, string | undefined>;
+export async function onRequestPost(_context: any): Promise<Response> {
   const cookie = serializeCookie('jwt_token', '', {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',
     path: '/',
     maxAge: 0,
-    domain: env.COOKIE_DOMAIN || undefined,
   });
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,

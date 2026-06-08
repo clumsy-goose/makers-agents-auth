@@ -73,16 +73,17 @@ function AppShell() {
       {user
         ? <UserPill user={user} onSignOut={signOut} />
         : <SignInButton onClick={openSignIn} />}
-      <AppInner isAuthed={user !== null} />
+      <AppInner isAuthed={user !== null} openSignIn={openSignIn} />
     </>
   );
 }
 
 interface AppInnerProps {
   isAuthed: boolean;
+  openSignIn: () => void;
 }
 
-function AppInner({ isAuthed }: AppInnerProps) {
+function AppInner({ isAuthed, openSignIn }: AppInnerProps) {
   const { t } = useT();
   const buildLamps = useCallback((): ToolLampState[] =>
     LAMP_IDS.map(id => ({
@@ -109,11 +110,17 @@ function AppInner({ isAuthed }: AppInnerProps) {
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * 401 时把"待重发"的消息文本暂存,登录成功后(isAuthed false→true)自动续上重发。
-   * 带时间戳是为了给"陈年缓存"加保护伞:用户 401 后没登录,过几小时回来再开
-   * 弹窗登录,不应该把当时的提问突然回放出来。
+   * 待重发缓存。两个填入路径:
+   *   1. **未登录拦截**(handleSend 起点):访客点 Send 时直接拦在客户端,
+   *      不走任何网络请求,只把 text 暂存 + 弹登录窗。skipUserMsg = false
+   *      (用户气泡还没插入,登录后续上时由 retry 走完整 handleSend 把 user msg 也加上)
+   *   2. **401 兜底**(authed 用户 token 中途失效 / 边缘竞态):/chat 已发出去后被拒,
+   *      此时用户气泡已经在聊天窗里。skipUserMsg = true(登录后续上时不重复插入)
+   *
+   * 时间戳兜底:用户开了登录窗后离开,几小时后回来再登录,不应突然回放当时的提问。
+   * 5 分钟外的 pending 在 retry effect 里被丢弃。
    */
-  const pendingMessageRef = useRef<{ text: string; ts: number } | null>(null);
+  const pendingMessageRef = useRef<{ text: string; ts: number; skipUserMsg: boolean } | null>(null);
   const prevIsAuthedRef = useRef<boolean>(isAuthed);
   const PENDING_TTL_MS = 5 * 60 * 1000;
 
@@ -233,6 +240,16 @@ function AppInner({ isAuthed }: AppInnerProps) {
     text: string,
     opts?: { skipUserMsg?: boolean; isRetry?: boolean },
   ) => {
+    // 未登录拦截 — 访客点 Send 直接弹登录窗,不走任何网络。
+    // 把 text 进入待重发缓存,登录成功后由 retry effect 自动续发。
+    // isRetry 时跳过本闸:retry 由我们自己触发,意味着登录已经完成,
+    //                    isAuthed=true 的状态可能还没传播到这次 useCallback 的闭包里。
+    if (!isAuthed && !opts?.isRetry) {
+      pendingMessageRef.current = { text, ts: Date.now(), skipUserMsg: false };
+      openSignIn();
+      return;
+    }
+
     initDoneRef.current = true;
     setRightPanelMode('debug');
 
@@ -292,24 +309,30 @@ function AppInner({ isAuthed }: AppInnerProps) {
       // - 不展示"请求失败"误导用户(那是后端错误文案,这里是登录失效)
       // - 用户消息气泡保留在聊天里,作为登录弹窗背后的视觉上下文
       // - 重发模式(isRetry)不再 enqueue,防止 401→retry→401 死循环
+      // - skipUserMsg=true:这条 pending 是从"已经插入用户气泡"的失败请求来的,
+      //                     登录后续上时不再重复插入
       onAuthRequired() {
         const orphanId = botMsgIdRef.current;
         setMessages(prev => prev.filter(m => m.id !== orphanId));
         if (!opts?.isRetry) {
-          pendingMessageRef.current = { text, ts: Date.now() };
+          pendingMessageRef.current = { text, ts: Date.now(), skipUserMsg: true };
         }
         finishStream();
       },
     }, conversationIdRef.current);
 
     abortCtrlRef.current = ctrl;
-  }, [updateBotMessage, finishStream, t]);
+  }, [isAuthed, openSignIn, updateBotMessage, finishStream, t]);
 
   /**
-   * 监听 isAuthed 从 false 翻到 true(登录/注册成功)→ 续上之前 401 失败的消息。
+   * 监听 isAuthed 从 false 翻到 true(登录/注册成功)→ 续上之前 pending 的消息。
    * 用 prevIsAuthedRef 严格捕捉"翻转"瞬间,避免:
    *   - 初始挂载时 isAuthed 已经是 true 的回放
    *   - handleSend 改变引用导致 effect 重跑时的误触
+   *
+   * pending 来源不同 → skipUserMsg 不同(见 pendingMessageRef 注释):
+   *   - 来自访客拦截:skipUserMsg=false,retry 时把用户气泡也插入
+   *   - 来自 401 兜底:skipUserMsg=true,用户气泡已在,retry 不重复插入
    */
   useEffect(() => {
     const wasAuthed = prevIsAuthedRef.current;
@@ -323,7 +346,7 @@ function AppInner({ isAuthed }: AppInnerProps) {
     // 陈年缓存兜底 — 超过 5 分钟视作过时,不回放,避免突兀
     if (Date.now() - pending.ts > PENDING_TTL_MS) return;
 
-    handleSend(pending.text, { skipUserMsg: true, isRetry: true });
+    handleSend(pending.text, { skipUserMsg: pending.skipUserMsg, isRetry: true });
   }, [isAuthed, handleSend]);
 
   const handleClearHistory = useCallback(() => {

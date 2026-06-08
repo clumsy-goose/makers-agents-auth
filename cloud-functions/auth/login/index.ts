@@ -9,11 +9,10 @@
  */
 
 import bcrypt from 'bcryptjs';
-import { signJwt, serializeCookie } from '../../_jwt';
+import { signJwt, serializeCookie, JWT_TTL_SECONDS } from '../../_jwt';
 import { findUserByUsername } from '../../_db';
 import { validateUsername, validatePassword } from '../../_validate';
 
-const JWT_TTL_DEFAULT = 86400;
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=UTF-8' } as const;
 
 function jsonResponse(data: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
@@ -67,15 +66,13 @@ export async function onRequestPost(context: any): Promise<Response> {
   }
 
   // 签发 JWT
-  const ttl = Number(env.JWT_TTL_SECONDS ?? JWT_TTL_DEFAULT);
-  const token = signJwt({ sub: user.id, username: user.username }, secret, ttl);
+  const token = signJwt({ sub: user.id, username: user.username }, secret);
   const cookie = serializeCookie('jwt_token', token, {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',
     path: '/',
-    maxAge: ttl,
-    domain: env.COOKIE_DOMAIN || undefined,
+    maxAge: JWT_TTL_SECONDS,
   });
 
   return jsonResponse(

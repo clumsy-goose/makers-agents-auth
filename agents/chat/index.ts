@@ -63,7 +63,7 @@ export async function onRequest(context: any) {
   });
   const model = new OpenAIChatCompletionsModel(
     llmClient,
-    env.AI_GATEWAY_MODEL ?? DEFAULT_MODEL,
+    DEFAULT_MODEL,
   );
 
   // Create OpenAI Agent
@@ -94,9 +94,10 @@ export async function onRequest(context: any) {
   // Convert SDK stream events into business SSE events.
   return sseResponse(
     async function* () {
-      // ── trace 信号:Agent 已独立 HMAC 验签通过,在流首帧告诉前端 ──
-      // 这是双层防御铁律的实证 — 前端 AuthChainTrace 看到此事件就点亮 Agent 节点。
-      // 字段保留 sub / username / ts 方便客户端渲染时延 / 用户名校验。
+      // ── trace 信号:Agent 已独立 HMAC 验签通过,在流首帧告诉客户端 ──
+      // 双层防御铁律的实证 — DebugPanel / `curl -N` 能看到此事件,
+      // 用以确认这一跳真的跑到了 Agent 内部、且没绕过 node:crypto 验签。
+      // 字段保留 sub / username / ts 方便排障与时延对账。
       yield {
         event: 'auth_ok',
         data: {
@@ -108,9 +109,9 @@ export async function onRequest(context: any) {
       };
 
       // ── 阶段二链路第二步:Agent 内部读 Neon 取业务数据(HTTPS 模式) ──
-      // 这一步是 pages-agent-auth-flow.html 方案一图示里 "Agent → Neon ← Agent" 这条边的实证。
-      // 拿 JWT.sub 去 users 表查 profile,既给 LLM 注入个性化上下文,
-      // 又让前端 AuthChainTrace 看到真实的 HTTPS 数据访问时延。
+      // 拿 JWT.sub 去 users 表查 profile,把个性化上下文注入到 LLM 的 instructions。
+      // 同时 emit neon_query_start / neon_query_done SSE 事件,后端日志与浏览器
+      // DebugPanel 都能看到这一跳的真实 HTTPS 时延,作为"Agent 直连业务数据库"的实证。
       let userProfile: UserProfile | null = null;
       const queryStart = Date.now();
       yield {

@@ -12,12 +12,11 @@
  */
 
 import bcrypt from 'bcryptjs';
-import { signJwt, serializeCookie } from '../../_jwt';
+import { signJwt, serializeCookie, JWT_TTL_SECONDS } from '../../_jwt';
 import { findUserByUsername, createUser } from '../../_db';
 import { validateUsername, validatePassword } from '../../_validate';
 
 const BCRYPT_COST = 10;       // 平衡安全与冷启动延迟
-const JWT_TTL_DEFAULT = 86400; // 1 day
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=UTF-8' } as const;
 
@@ -73,15 +72,13 @@ export async function onRequestPost(context: any): Promise<Response> {
   }
 
   // 5) 签发 JWT 并写入 Cookie
-  const ttl = Number(env.JWT_TTL_SECONDS ?? JWT_TTL_DEFAULT);
-  const token = signJwt({ sub: user.id, username: user.username }, secret, ttl);
+  const token = signJwt({ sub: user.id, username: user.username }, secret);
   const cookie = serializeCookie('jwt_token', token, {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',
     path: '/',
-    maxAge: ttl,
-    domain: env.COOKIE_DOMAIN || undefined,
+    maxAge: JWT_TTL_SECONDS,
   });
 
   return jsonResponse(

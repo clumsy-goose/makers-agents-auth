@@ -44,16 +44,22 @@ function hmac(secret: string, data: string): Buffer {
 // ── public API ────────────────────────────────────────────────
 
 /**
+ * JWT 过期秒数 — 全局唯一来源,login / register / cookie maxAge 共用。
+ * 3 天:在"安全短 TTL"和"用户体验不要频繁掉线"之间的折中。
+ */
+export const JWT_TTL_SECONDS = 3 * 24 * 60 * 60;
+
+/**
  * 签发 JWT。
  *
  * @param payload 至少包含 sub / username,iat / exp 由本函数自动注入
  * @param secret  共享密钥(JWT_SECRET)
- * @param ttlSec  过期秒数,默认 86400(1 天)
+ * @param ttlSec  过期秒数,默认 JWT_TTL_SECONDS(3 天)
  */
 export function signJwt(
   payload: { sub: string; username: string },
   secret: string,
-  ttlSec = 86400,
+  ttlSec = JWT_TTL_SECONDS,
 ): string {
   if (!secret) throw new Error('JWT_SECRET is required');
   const now = Math.floor(Date.now() / 1000);

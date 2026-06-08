@@ -4,7 +4,7 @@
  *
  * 方案一 · 边缘节点早拒鉴权层(Edge V8 Runtime)。
  *
- * 职责严格对齐 pages-agent-auth-flow.html 第②/⑨步:
+ * 职责:
  *   - matcher 是受保护路径的**唯一真理来源**:命中即验签,未命中根本不进入本文件
  *   - 受保护路径(/chat, /stop, /history, /agents/*, /admin/*):
  *       - Web Crypto HS256 验签 Cookie jwt_token
