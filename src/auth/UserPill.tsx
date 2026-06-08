@@ -8,13 +8,13 @@
  *   - exp 过期时间
  *   - 退出登录按钮
  *
- * 注:这里展示的 sub / exp 是从 /auth/me 二次拉取得到(JWT 是 HttpOnly Cookie,
- * JS 拿不到 token 本身,但 /auth/me 会回包含 user + exp)。
+ * 注:这里展示的 sub / exp 是从 /auth/user 二次拉取得到(JWT 是 HttpOnly Cookie,
+ * JS 拿不到 token 本身,但 /auth/user 会回包含 user + exp)。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../i18n';
-import { type AuthUser } from '../api';
+import { API, type AuthUser } from '../api';
 import styles from './UserPill.module.css';
 
 interface UserPillProps {
@@ -33,13 +33,13 @@ export default function UserPill({ user, onSignOut }: UserPillProps) {
   const [meta, setMeta] = useState<MeMeta>({ sub: user.id });
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // 展开时拉一次 /auth/me 同步 exp(JWT 在 HttpOnly Cookie 里,JS 解不到)
+  // 展开时拉一次 /auth/user 同步 exp(JWT 在 HttpOnly Cookie 里,JS 解不到)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/auth/me', { credentials: 'include' });
+        const res = await fetch(API.authUser, { credentials: 'include' });
         if (!res.ok || cancelled) return;
         const data = await res.json() as { user: AuthUser; exp?: number };
         if (!cancelled) setMeta({ sub: data.user.id, exp: data.exp });
@@ -105,10 +105,6 @@ export default function UserPill({ user, onSignOut }: UserPillProps) {
                 <dt className={styles.metaLabel}>{t('pill.userId')}</dt>
                 <dd className={styles.metaValue}><strong>{shortenUuid(meta.sub)}</strong></dd>
               </div>
-              {/* <div className={styles.metaRow}>
-                <dt className={styles.metaLabel}>{t('pill.token')}</dt>
-                <dd className={styles.metaValue}>{t('pill.token.value')}</dd>
-              </div> */}
               <div className={styles.metaRow}>
                 <dt className={styles.metaLabel}>{t('pill.expiresAt')}</dt>
                 <dd className={styles.metaValue}><strong>{expText}</strong></dd>

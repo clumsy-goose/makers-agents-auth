@@ -1,8 +1,8 @@
 -- ============================================================================
--- 0001_users.sql  ·  EdgeOne Pages Agent · 鉴权方案一(Neon Postgres)
+-- users.sql  ·  EdgeOne Pages Agent · 鉴权方案一(Neon Postgres)
 -- ----------------------------------------------------------------------------
 -- 在 Neon 控制台 SQL Editor 直接粘贴执行,或通过 psql:
---   psql "$DATABASE_URL" -f db/migrations/0001_users.sql
+--   psql "$DATABASE_URL" -f db/migrations/users.sql
 --
 -- ============================================================================
 

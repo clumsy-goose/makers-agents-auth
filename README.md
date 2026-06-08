@@ -1,10 +1,10 @@
-# OpenAI Agents Auth Starter <!-- TODO: confirm display name -->
+# OpenAI Agents Auth Starter `<!-- TODO: confirm display name -->`
 
 **Language:** English | [简体中文](./README_zh-CN.md)
 
 > A streaming chat agent built with the **OpenAI Agents SDK** on EdgeOne Makers — with end-to-end authentication (edge middleware + cloud-functions + Agent self-verify) backed by Neon Postgres.
 
-**Framework:** OpenAI Agents SDK · **Category:** Chat <!-- TODO: confirm category --> · **Language:** TypeScript
+**Framework:** OpenAI Agents SDK · **Category:** Chat `<!-- TODO: confirm category -->` · **Language:** TypeScript
 
 [![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/makers/new?template=makers-agent-auth&from=within&fromAgent=1&agentLang=typescript)
 
@@ -15,18 +15,18 @@ A production-shaped chat-agent template that demonstrates the **two-layer defens
 - **Two-layer auth defense** — `middleware.js` rejects unsigned requests at the edge; `agents/chat` re-verifies HMAC independently with the same `JWT_SECRET`
 - **SSE streaming chat** — token-by-token output and tool-call events powered by OpenAI Agents SDK
 - **Neon Postgres over HTTPS** — `@neondatabase/serverless` with parameterised tag-template SQL; no TCP driver, no DB ops
-- **bcrypt-hashed passwords** — register / login / me / logout cloud-functions running on Node 20
+- **bcrypt-hashed passwords** — register / login / user / logout cloud-functions running on Node 20
 - **Anonymous-first UI** — guests browse the homepage freely; the login modal pops only when a protected request hits 401 (or on guest-Send), and auto-resends the original message after sign-in
 - **Custom tools, session memory, stop generation** — all the Agent primitives wired end to end
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AI_GATEWAY_API_KEY` | Yes | Model gateway API key. Use your **Makers Models API Key**, or any OpenAI-compatible provider key. |
-| `AI_GATEWAY_BASE_URL` | Yes | Gateway base URL. For Makers Models, use `https://ai-gateway.edgeone.link/v1`. |
-| `JWT_SECRET` | Yes | HMAC-SHA256 secret shared by middleware, cloud-functions, and the Agent runtime — each layer verifies the same JWT independently. Generate ≥ 48 bytes of randomness. |
-| `DATABASE_URL` | Yes | Neon Postgres HTTPS connection string (`postgresql://...?sslmode=require`). Used by login / register / agent profile lookup. |
+| Variable                | Required | Description                                                                                                                                                            |
+| ----------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_GATEWAY_API_KEY`  | Yes      | Model gateway API key. Use your**Makers Models API Key**, or any OpenAI-compatible provider key.                                                                 |
+| `AI_GATEWAY_BASE_URL` | Yes      | Gateway base URL. For Makers Models, use `https://ai-gateway.edgeone.link/v1`.                                                                                       |
+| `JWT_SECRET`          | Yes      | HMAC-SHA256 secret shared by middleware, cloud-functions, and the Agent runtime — each layer verifies the same JWT independently. Generate ≥ 48 bytes of randomness. |
+| `DATABASE_URL`        | Yes      | Neon Postgres HTTPS connection string (`postgresql://...?sslmode=require`). Used by login / register / agent profile lookup.                                         |
 
 > This template follows the **OpenAI-compatible** standard — point the `AI_GATEWAY_*` variables at Makers Models or any other compatible gateway / provider.
 
@@ -43,7 +43,7 @@ Built-in models (`@makers/deepseek-v4-flash`, `@makers/hy3-preview`, `@makers/mi
 
 1. Sign up at [neon.tech](https://neon.tech) and create a project (pick a region close to your EdgeOne nodes — e.g. AWS Singapore / Tokyo).
 2. From the project Dashboard, copy the **HTTP** connection string (it begins with `postgresql://...` and ends with `?sslmode=require`) into `DATABASE_URL`.
-3. Run the migration in Neon's SQL Editor (the file lives at `db/migrations/0001_users.sql`):
+3. Run the migration in Neon's SQL Editor (the file lives at `db/migrations/users.sql`):
    ```sql
    CREATE EXTENSION IF NOT EXISTS pgcrypto;
    CREATE TABLE IF NOT EXISTS users (
@@ -98,7 +98,7 @@ makers-agent-auth/
 │   ├── auth/
 │   │   ├── login/index.ts           # POST /auth/login    — bcrypt verify + sign JWT
 │   │   ├── register/index.ts        # POST /auth/register — bcrypt hash + insert + sign JWT
-│   │   ├── me/index.ts              # GET  /auth/me       — return current user + exp
+│   │   ├── user/index.ts            # GET  /auth/user     — return current user + exp
 │   │   └── logout/index.ts          # POST /auth/logout   — clear cookie
 │   ├── history/index.ts             # POST /history       — auth-gated conversation history
 │   ├── _jwt.ts                      # node:crypto JWT sign / verify (cf layer)
@@ -106,7 +106,7 @@ makers-agent-auth/
 │   ├── _validate.ts                 # username / password format guards
 │   └── _logger.ts
 ├── db/migrations/
-│   └── 0001_users.sql               # users table schema
+│   └── users.sql                    # users table schema
 ├── src/                             # Vite + React frontend
 │   ├── auth/
 │   │   ├── AuthGate.tsx             # Auth context + on-demand login modal
@@ -147,15 +147,15 @@ The template implements the **"middleware + cloud-functions + Agent self-verify"
 
 ### Routes
 
-| Method | Path | Handler | Auth |
-|---|---|---|---|
-| POST | `/auth/register` | `cloud-functions/auth/register` | public |
-| POST | `/auth/login` | `cloud-functions/auth/login` | public |
-| GET  | `/auth/me` | `cloud-functions/auth/me` | required |
-| POST | `/auth/logout` | `cloud-functions/auth/logout` | public |
-| POST | `/chat` | `agents/chat` | required |
-| POST | `/stop` | `agents/stop` | required |
-| POST | `/history` | `cloud-functions/history` | required |
+| Method | Path               | Handler                           | Auth     |
+| ------ | ------------------ | --------------------------------- | -------- |
+| POST   | `/auth/register` | `cloud-functions/auth/register` | public   |
+| POST   | `/auth/login`    | `cloud-functions/auth/login`    | public   |
+| GET    | `/auth/user`     | `cloud-functions/auth/user`     | required |
+| POST   | `/auth/logout`   | `cloud-functions/auth/logout`   | public   |
+| POST   | `/chat`          | `agents/chat`                   | required |
+| POST   | `/stop`          | `agents/stop`                   | required |
+| POST   | `/history`       | `cloud-functions/history`       | required |
 
 ### Runtime parameters
 

@@ -7,7 +7,7 @@
  *   cloud-functions/history/index.ts    → POST /history  Get conversation history
  *   cloud-functions/auth/login          → POST /auth/login
  *   cloud-functions/auth/register       → POST /auth/register
- *   cloud-functions/auth/me             → GET  /auth/me
+ *   cloud-functions/auth/user           → GET  /auth/user
  *   cloud-functions/auth/logout         → POST /auth/logout
  *
  * This file defines all API paths and request wrappers.
@@ -21,7 +21,7 @@ export const API = {
   history: '/history',
   authLogin: '/auth/login',
   authRegister: '/auth/register',
-  authMe: '/auth/me',
+  authUser: '/auth/user',
   authLogout: '/auth/logout',
 } as const;
 
@@ -85,9 +85,9 @@ export async function register(username: string, password: string): Promise<Auth
 }
 
 /** 探测当前是否已登录 — 失败返回 null,UI 据此渲染登录页或聊天页 */
-export async function fetchMe(): Promise<AuthUser | null> {
+export async function fetchUser(): Promise<AuthUser | null> {
   try {
-    const res = await fetch(API.authMe, { credentials: 'include' });
+    const res = await fetch(API.authUser, { credentials: 'include' });
     if (!res.ok) return null;
     const data = await res.json() as { user?: AuthUser };
     return data.user ?? null;

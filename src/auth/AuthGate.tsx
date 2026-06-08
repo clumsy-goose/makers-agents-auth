@@ -8,7 +8,7 @@
  *   或用户主动点击 "Sign in" 时才弹出登录弹窗。
  *
  * 工作流程:
- *   1. 启动探测 /auth/me,确定当前会话状态(authenticated 或 guest)
+ *   1. 启动探测 /auth/user,确定当前会话状态(authenticated 或 guest)
  *   2. 通过 React Context 把 { user, signOut, openSignIn } 暴露给整棵子树
  *   3. 监听全局 'eo:auth-required' 事件(api.ts 在任何 401 时派发)→ 弹出登录弹窗
  *   4. 登录/注册成功 → 关弹窗 + 同步 user state(子组件经 hook 拿到最新 user)
@@ -31,7 +31,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  fetchMe,
+  fetchUser,
   login as apiLogin,
   register as apiRegister,
   logout as apiLogout,
@@ -89,7 +89,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   // 启动探测 — 决定初始的 user 状态
   useEffect(() => {
     let cancelled = false;
-    fetchMe().then(u => {
+    fetchUser().then(u => {
       if (cancelled) return;
       setUser(u);
       setPhase('ready');

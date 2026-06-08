@@ -15,7 +15,7 @@
 - **双层防御鉴权** — `middleware.js` 在边缘节点早拒,`agents/chat` 用同一个 `JWT_SECRET` 独立 HMAC 再验签
 - **SSE 流式聊天** — 基于 OpenAI Agents SDK 的 token 级流式输出 + 工具调用事件
 - **Neon Postgres over HTTPS** — `@neondatabase/serverless` 标签模板 SQL 自动参数化(防 SQLi),无 TCP 驱动,无数据库运维
-- **bcrypt 密码哈希** — 注册 / 登录 / me / 登出 cloud-functions 跑在 Node 20
+- **bcrypt 密码哈希** — 注册 / 登录 / user / 登出 cloud-functions 跑在 Node 20
 - **访客优先 UI** — 未登录可正常浏览首页;登录弹窗仅在(a)受保护接口返回 401 或(b)访客点 Send 时弹出,登录成功后自动续上原消息
 - **自定义工具 + 会话记忆 + 停止生成** — 完整的 Agent 原语全链路打通
 
@@ -99,7 +99,7 @@ makers-agent-auth/
 │   ├── auth/
 │   │   ├── login/index.ts           # POST /auth/login    — bcrypt 校验 + 签 JWT
 │   │   ├── register/index.ts        # POST /auth/register  — bcrypt 哈希 + 入库 + 签 JWT
-│   │   ├── me/index.ts              # GET  /auth/me        — 当前用户 + exp
+│   │   ├── user/index.ts            # GET  /auth/user      — 当前用户 + exp
 │   │   └── logout/index.ts          # POST /auth/logout    — 清 Cookie
 │   ├── history/index.ts             # POST /history        — 鉴权后的对话历史
 │   ├── _jwt.ts                      # node:crypto JWT 签发 / 验签(cf 层)
@@ -107,7 +107,7 @@ makers-agent-auth/
 │   ├── _validate.ts                 # 用户名 / 密码格式校验
 │   └── _logger.ts
 ├── db/migrations/
-│   └── 0001_users.sql               # users 表 schema
+│   └── users.sql                    # users 表 schema
 ├── src/                             # Vite + React 前端
 │   ├── auth/
 │   │   ├── AuthGate.tsx             # 鉴权上下文 + 按需登录弹窗
@@ -152,7 +152,7 @@ makers-agent-auth/
 |---|---|---|---|
 | POST | `/auth/register` | `cloud-functions/auth/register` | 公开 |
 | POST | `/auth/login` | `cloud-functions/auth/login` | 公开 |
-| GET  | `/auth/me` | `cloud-functions/auth/me` | 需鉴权 |
+| GET  | `/auth/user` | `cloud-functions/auth/user` | 需鉴权 |
 | POST | `/auth/logout` | `cloud-functions/auth/logout` | 公开 |
 | POST | `/chat` | `agents/chat` | 需鉴权 |
 | POST | `/stop` | `agents/stop` | 需鉴权 |
