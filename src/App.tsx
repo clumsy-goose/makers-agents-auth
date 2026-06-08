@@ -108,6 +108,15 @@ function AppInner({ isAuthed }: AppInnerProps) {
   const initDoneRef = useRef(false);
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /**
+   * 401 时把"待重发"的消息文本暂存,登录成功后(isAuthed false→true)自动续上重发。
+   * 带时间戳是为了给"陈年缓存"加保护伞:用户 401 后没登录,过几小时回来再开
+   * 弹窗登录,不应该把当时的提问突然回放出来。
+   */
+  const pendingMessageRef = useRef<{ text: string; ts: number } | null>(null);
+  const prevIsAuthedRef = useRef<boolean>(isAuthed);
+  const PENDING_TTL_MS = 5 * 60 * 1000;
+
   // Update lamp labels when language changes
   useEffect(() => {
     setLamps(prev =>
@@ -138,6 +147,19 @@ function AppInner({ isAuthed }: AppInnerProps) {
     // 访客模式不拉历史 — /history 是受保护接口,直接探测会触发 401 → 自动弹窗,
     // 这对未登录浏览首页的体验是种打扰。等用户主动登录后再拉。
     if (!isAuthed) {
+      setHistoryLoading(false);
+      return;
+    }
+
+    // 有"401 后待重发"任务时,跳过 history / snapshot 加载。否则:
+    //   401 清场后,messages = [userMsg],snapshot effect 防抖 500ms 后落盘成 [userMsg]。
+    //   登录耗时通常 > 500ms,等用户登录成功 isAuthed flip 时,这条脏 snapshot 已落盘。
+    //   两个 effect 同时触发:retry 同步推 botMsg + 流式填内容,
+    //   restoreSnapshot 异步晚到 setMessages([userMsg]) 把流式 bot 整个冲掉。
+    // 跳过的代价:
+    //   - 新注册用户:本来就没 server 历史,无损失
+    //   - 重新登录的老用户:历史本就在 messages state 里(401 前已加载完),也无损失
+    if (pendingMessageRef.current) {
       setHistoryLoading(false);
       return;
     }
@@ -198,11 +220,23 @@ function AppInner({ isAuthed }: AppInnerProps) {
     abortCtrlRef.current = null;
   }, []);
 
-  const handleSend = useCallback(async (text: string) => {
+  /**
+   * 发送消息。
+   *
+   * @param opts.skipUserMsg  重发模式下用户消息已经在聊天里(401 时只删掉空 bot 气泡,
+   *                          保留用户气泡作为可见上下文),续上时不再重复插入
+   * @param opts.isRetry      标记本次调用是"登录后续上"的重发。
+   *                          作用:即使重发再次 401(罕见,但可能 race),
+   *                          不再 enqueue pending,避免登录 → 401 → 续 → 401 死循环
+   */
+  const handleSend = useCallback(async (
+    text: string,
+    opts?: { skipUserMsg?: boolean; isRetry?: boolean },
+  ) => {
     initDoneRef.current = true;
     setRightPanelMode('debug');
 
-    const userMsg: Message = {
+    const userMsg: Message | null = opts?.skipUserMsg ? null : {
       id: crypto.randomUUID(),
       role: 'user',
       content: text,
@@ -218,7 +252,7 @@ function AppInner({ isAuthed }: AppInnerProps) {
       timestamp: Date.now(),
     };
 
-    setMessages(prev => [...prev, userMsg, botMsg]);
+    setMessages(prev => userMsg ? [...prev, userMsg, botMsg] : [...prev, botMsg]);
     setLoading(true);
 
     const ctrl = sendMessageStream(text, {
@@ -254,17 +288,43 @@ function AppInner({ isAuthed }: AppInnerProps) {
         finishStream();
       },
 
-      // 401 时只清理占位气泡 + 关 loading,登录弹窗由 AuthGate 监听全局事件自动弹出。
-      // 不写"请求失败"文案 — 这种状态下展示后端错误会误导用户。
+      // 401:清理空 bot 气泡 + 关 loading + 暂存消息文本待登录后续上。
+      // - 不展示"请求失败"误导用户(那是后端错误文案,这里是登录失效)
+      // - 用户消息气泡保留在聊天里,作为登录弹窗背后的视觉上下文
+      // - 重发模式(isRetry)不再 enqueue,防止 401→retry→401 死循环
       onAuthRequired() {
         const orphanId = botMsgIdRef.current;
         setMessages(prev => prev.filter(m => m.id !== orphanId));
+        if (!opts?.isRetry) {
+          pendingMessageRef.current = { text, ts: Date.now() };
+        }
         finishStream();
       },
     }, conversationIdRef.current);
 
     abortCtrlRef.current = ctrl;
   }, [updateBotMessage, finishStream, t]);
+
+  /**
+   * 监听 isAuthed 从 false 翻到 true(登录/注册成功)→ 续上之前 401 失败的消息。
+   * 用 prevIsAuthedRef 严格捕捉"翻转"瞬间,避免:
+   *   - 初始挂载时 isAuthed 已经是 true 的回放
+   *   - handleSend 改变引用导致 effect 重跑时的误触
+   */
+  useEffect(() => {
+    const wasAuthed = prevIsAuthedRef.current;
+    prevIsAuthedRef.current = isAuthed;
+
+    if (wasAuthed || !isAuthed) return;
+    const pending = pendingMessageRef.current;
+    if (!pending) return;
+    pendingMessageRef.current = null;
+
+    // 陈年缓存兜底 — 超过 5 分钟视作过时,不回放,避免突兀
+    if (Date.now() - pending.ts > PENDING_TTL_MS) return;
+
+    handleSend(pending.text, { skipUserMsg: true, isRetry: true });
+  }, [isAuthed, handleSend]);
 
   const handleClearHistory = useCallback(() => {
     if (abortCtrlRef.current) {
