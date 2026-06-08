@@ -1,0 +1,68 @@
+/* ============================================================================
+ * SignInButton.module.css
+ * --------------------------------------------------------------------------
+ * 与 UserPill 共用 fixed 顶右容器位置(top:12, right:18, z:1001)。
+ * 视觉档次贴齐 UserPill 的玻璃磨砂 pill,但更窄、带强调金色脉冲点。
+ * ========================================================================== */
+
+.button {
+  position: fixed;
+  top: 12px;
+  right: 18px;
+  z-index: 1001;
+  appearance: none;
+  border: 1px solid rgba(245, 200, 66, 0.32);
+  background: rgba(245, 200, 66, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  transition: background 200ms, color 200ms, border-color 200ms, transform 140ms,
+              box-shadow 200ms;
+}
+.button:hover {
+  background: rgba(245, 200, 66, 0.14);
+  border-color: rgba(245, 200, 66, 0.55);
+  box-shadow: 0 8px 22px -8px rgba(245, 200, 66, 0.35);
+}
+.button:active {
+  transform: translateY(1px);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(245, 200, 66, 0.6);
+  animation: cta-pulse 2.2s ease-out infinite;
+}
+@keyframes cta-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 200, 66, 0.55); }
+  60%  { box-shadow: 0 0 0 11px rgba(245, 200, 66, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 200, 66, 0); }
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.arrow {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.button:hover .arrow {
+  transform: translateX(2px);
+}

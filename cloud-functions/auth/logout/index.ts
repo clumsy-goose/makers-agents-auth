@@ -10,7 +10,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json; charset=UTF-8' } as co
 
 export async function onRequestPost(context: any): Promise<Response> {
   const env = (context.env ?? {}) as Record<string, string | undefined>;
-  const cookie = serializeCookie('eo_token', '', {
+  const cookie = serializeCookie('jwt_token', '', {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',

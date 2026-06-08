@@ -8,7 +8,7 @@
  *   - 用户主动刷新页面时不会再触发(标记已被消费 + 浏览器 reload 清空 sessionStorage 行为)
  *
  * 视觉:Bento 风格半透明卡 + 4 节点 staggered 链路动画
- *   节点 1 浏览器        Cookie eo_token
+ *   节点 1 浏览器        Cookie jwt_token
  *   节点 2 Middleware    Web Crypto 早拒
  *   节点 3 Cloud Function bcrypt + 签 JWT
  *   节点 4 Agent Runtime node:crypto 自验签

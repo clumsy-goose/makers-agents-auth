@@ -1,8 +1,12 @@
 /**
- * GET /auth/me — 返回当前已登录用户(仅前端用于刷新页面后回填会话状态)
+ * GET /auth/me — 返回当前已登录用户(前端刷新页面后用来回填会话状态)
  *
- * 注意:中间件已经在 /auth/me 命中前用 matcher 把它纳入 mw 流程,
- * 但 /auth/* 在中间件白名单里 → 不验签直接放行,所以本函数必须自己 requireAuth。
+ * 鉴权拓扑:
+ *   /auth/* 不在 middleware.js 的 matcher 里,平台路由直接派发到本函数,
+ *   不经过边缘中间件 → 本函数是这条路径上**唯一的鉴权关卡**,必须自己 requireAuth。
+ *
+ *   验签实现(node:crypto HMAC-SHA256)与 middleware.js 的 Web Crypto 字节级一致,
+ *   共用同一个 JWT_SECRET。
  */
 
 import { requireAuth, AuthError, unauthorizedResponse } from '../../_jwt';

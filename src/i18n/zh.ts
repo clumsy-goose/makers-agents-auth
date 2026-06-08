@@ -87,7 +87,7 @@ const zh = {
   "welcome.title.register": "账号已创建",
   "welcome.subtitle": "方案一鉴权链路已激活 · 双层防御生效",
   "welcome.chain.browser": "浏览器",
-  "welcome.chain.browser.note": "Cookie eo_token",
+  "welcome.chain.browser.note": "Cookie jwt_token",
   "welcome.chain.middleware": "Middleware",
   "welcome.chain.middleware.note": "Web Crypto 早拒",
   "welcome.chain.cf": "Cloud Function",
@@ -95,6 +95,11 @@ const zh = {
   "welcome.chain.agent": "Agent Runtime",
   "welcome.chain.agent.note": "node:crypto 自验签",
   "welcome.dismiss": "关闭",
+
+  // Guest 模式(未登录头部 CTA + 弹窗关闭)
+  "guest.signin": "登录",
+  "auth.modal.dismiss": "关闭",
+  "auth.modal.required": "登录后继续",
 
   // User pill
   "pill.expand": "展开账户菜单",

@@ -105,10 +105,10 @@ export default function UserPill({ user, onSignOut }: UserPillProps) {
                 <dt className={styles.metaLabel}>{t('pill.userId')}</dt>
                 <dd className={styles.metaValue}><strong>{shortenUuid(meta.sub)}</strong></dd>
               </div>
-              <div className={styles.metaRow}>
+              {/* <div className={styles.metaRow}>
                 <dt className={styles.metaLabel}>{t('pill.token')}</dt>
                 <dd className={styles.metaValue}>{t('pill.token.value')}</dd>
-              </div>
+              </div> */}
               <div className={styles.metaRow}>
                 <dt className={styles.metaLabel}>{t('pill.expiresAt')}</dt>
                 <dd className={styles.metaValue}><strong>{expText}</strong></dd>

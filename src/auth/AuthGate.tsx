@@ -1,23 +1,35 @@
 /**
- * AuthGate — 登录 / 注册门面
- * ==========================
+ * AuthGate — 鉴权上下文 + 按需登录弹窗
+ * ====================================
  *
- * 包裹 ChatApp 的鉴权壳层。职责:
- *   1. 启动时探测 /auth/me,确定当前会话状态
- *   2. 未登录时展示 split-screen 登录/注册表单
- *   3. 监听全局 'eo:auth-required' 事件(api.ts 在 401 时派发)→ 自动回退到登录态
- *   4. 登录/注册成功后,重置 user state 并把控制权交回 children(ChatApp)
+ * 设计意图(2026-06 重构):
+ *   旧版本是"硬门面" — 未登录时整页拦截,只展示登录页。
+ *   新版本是"软门面" — 始终渲染主界面(homepage),只有当业务接口触发 401
+ *   或用户主动点击 "Sign in" 时才弹出登录弹窗。
  *
- * 视觉设计 — 严格遵循 design-taste-frontend-v1 (VARIANCE=8 / MOTION=6 / DENSITY=4):
- *   - Split Screen 50/50 不对称(禁用居中 hero)
- *   - 沿用项目 Syne / DM Mono / 金色 accent token
- *   - 完整 loading / error / inline helper 状态
- *   - active: translateY(1px) 物理反馈
+ * 工作流程:
+ *   1. 启动探测 /auth/me,确定当前会话状态(authenticated 或 guest)
+ *   2. 通过 React Context 把 { user, signOut, openSignIn } 暴露给整棵子树
+ *   3. 监听全局 'eo:auth-required' 事件(api.ts 在任何 401 时派发)→ 弹出登录弹窗
+ *   4. 登录/注册成功 → 关弹窗 + 同步 user state(子组件经 hook 拿到最新 user)
+ *
+ * 弹窗形态:
+ *   - 仅展示表单卡(原 split-screen 左侧 hero 文案已删除)
+ *   - 居中、磨砂玻璃 backdrop、ESC / 点击 backdrop 关闭、右上角 X 按钮
+ *   - 复用 CredentialsForm 组件(login / register 切换)
  *
  * i18n 接入:全部文案走 useT(),与全局 LangToggle 联动。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   fetchMe,
   login as apiLogin,
@@ -30,10 +42,26 @@ import { markJustAuthed } from './WelcomeFlash';
 import styles from './AuthGate.module.css';
 
 type Mode = 'login' | 'register';
-type Phase = 'probing' | 'guest' | 'authenticated';
+type Phase = 'probing' | 'ready';
 
-interface AuthGateProps {
-  children: (user: AuthUser, signOut: () => Promise<void>) => React.ReactNode;
+// ── Context ───────────────────────────────────────────────
+
+interface AuthGateContextValue {
+  /** null 表示当前是访客(guest);非 null 即已登录 */
+  user: AuthUser | null;
+  /** 触发登出 — 清 cookie 后 user 置 null,UI 自动切回访客态 */
+  signOut: () => Promise<void>;
+  /** 打开登录弹窗(用户主动点击 / 接到 401 自动触发) */
+  openSignIn: () => void;
+}
+
+const AuthGateContext = createContext<AuthGateContextValue | null>(null);
+
+/** 子组件用此 hook 获取鉴权状态 / 打开登录弹窗 */
+export function useAuthGate(): AuthGateContextValue {
+  const ctx = useContext(AuthGateContext);
+  if (!ctx) throw new Error('useAuthGate must be used within <AuthGate>');
+  return ctx;
 }
 
 // 后端错误码 → i18n key 映射
@@ -48,28 +76,33 @@ const ERR_KEY: Record<string, MessageKeys> = {
   auth_required: 'auth.err.auth_required',
 };
 
+// ── Provider 主组件 ────────────────────────────────────────
+
+interface AuthGateProps {
+  children: ReactNode;
+}
+
 export default function AuthGate({ children }: AuthGateProps) {
   const [phase, setPhase] = useState<Phase>('probing');
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
+  // 启动探测 — 决定初始的 user 状态
   useEffect(() => {
     let cancelled = false;
     fetchMe().then(u => {
       if (cancelled) return;
-      if (u) {
-        setUser(u);
-        setPhase('authenticated');
-      } else {
-        setPhase('guest');
-      }
+      setUser(u);
+      setPhase('ready');
     });
     return () => { cancelled = true; };
   }, []);
 
+  // 全局 401 监听 — 业务请求接到 401 自动弹登录窗
   useEffect(() => {
     const onAuthRequired = () => {
       setUser(null);
-      setPhase('guest');
+      setModalOpen(true);
     };
     window.addEventListener('eo:auth-required', onAuthRequired);
     return () => window.removeEventListener('eo:auth-required', onAuthRequired);
@@ -77,129 +110,133 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   const handleAuthed = useCallback((u: AuthUser) => {
     setUser(u);
-    setPhase('authenticated');
+    setModalOpen(false);
   }, []);
 
   const handleSignOut = useCallback(async () => {
     await apiLogout();
     setUser(null);
-    setPhase('guest');
   }, []);
 
+  const openSignIn = useCallback(() => {
+    setModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+  }, []);
+
+  // 探测阶段:渲染极简骨架避免内容闪烁
   if (phase === 'probing') {
-    return <div className={styles.shell} aria-busy="true" />;
+    return <div className={styles.probeShell} aria-busy="true" />;
   }
 
-  if (phase === 'authenticated' && user) {
-    return <>{children(user, handleSignOut)}</>;
-  }
-
-  return <AuthScreen onAuthed={handleAuthed} />;
+  return (
+    <AuthGateContext.Provider value={{ user, signOut: handleSignOut, openSignIn }}>
+      {children}
+      {modalOpen && !user && (
+        <AuthModal onAuthed={handleAuthed} onClose={closeModal} />
+      )}
+    </AuthGateContext.Provider>
+  );
 }
 
-// ── 登录/注册主屏 ──────────────────────────────────────────
+// ── 登录弹窗 ────────────────────────────────────────────────
 
-function AuthScreen({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
+interface AuthModalProps {
+  onAuthed: (u: AuthUser) => void;
+  onClose: () => void;
+}
+
+function AuthModal({ onAuthed, onClose }: AuthModalProps) {
   const [mode, setMode] = useState<Mode>('login');
   const { t } = useT();
 
+  // ESC 关闭
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // 锁定 body 滚动 — 弹窗期间防止背景跟随
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   return (
-    <div className={styles.shell}>
-      <div className={`${styles.blob} ${styles.blobA}`} aria-hidden />
-      <div className={`${styles.blob} ${styles.blobB}`} aria-hidden />
+    <div
+      className={styles.modalOverlay}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-modal-title"
+      onClick={onClose}
+    >
+      <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className={styles.modalClose}
+          onClick={onClose}
+          aria-label={t('auth.modal.dismiss')}
+        >
+          <XIcon />
+        </button>
 
-      {/* 左侧:文案 / 标识 */}
-      <section className={styles.left}>
-        <div className={styles.brand}>
-          <span className={styles.brandMark} aria-hidden />
-          <span>{t('auth.brand')}</span>
+        <span id="auth-modal-title" className={styles.modalEyebrow}>
+          {t('auth.modal.required')}
+        </span>
+
+        <div className={styles.tabs} role="tablist">
+          <button
+            type="button"
+            role="tab"
+            className={`${styles.tab} ${mode === 'login' ? styles.tabActive : ''}`}
+            onClick={() => setMode('login')}
+          >
+            {t('auth.tab.login')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={`${styles.tab} ${mode === 'register' ? styles.tabActive : ''}`}
+            onClick={() => setMode('register')}
+          >
+            {t('auth.tab.register')}
+          </button>
         </div>
 
-        <div className={styles.heroBlock}>
-          <span className={styles.eyebrow}>{t('auth.eyebrow')}</span>
-          <h1 className={styles.headline}>
-            {t('auth.headline.lead')}
-            {' '}
-            <em>{t('auth.headline.accent')}</em>
-            {' '}
-            {t('auth.headline.tail')}
-          </h1>
-          <p className={styles.deck}>{t('auth.deck')}</p>
-        </div>
-
-        <dl className={styles.signals}>
-          <div className={styles.signal}>
-            <dt className={styles.signalLabel}>{t('auth.signal.edge')}</dt>
-            <dd className={styles.signalValue}>
-              <span className={styles.pulse} aria-hidden />V8
-            </dd>
-          </div>
-          <div className={styles.signal}>
-            <dt className={styles.signalLabel}>{t('auth.signal.db')}</dt>
-            <dd className={styles.signalValue}>Neon · HTTPS</dd>
-          </div>
-          <div className={styles.signal}>
-            <dt className={styles.signalLabel}>{t('auth.signal.hash')}</dt>
-            <dd className={styles.signalValue}>bcrypt 10</dd>
-          </div>
-          <div className={styles.signal}>
-            <dt className={styles.signalLabel}>{t('auth.signal.token')}</dt>
-            <dd className={styles.signalValue}>JWT · HS256</dd>
-          </div>
-        </dl>
-      </section>
-
-      {/* 右侧:表单 */}
-      <section className={styles.right}>
-        <div className={styles.card}>
-          <div className={styles.tabs} role="tablist">
-            <button
-              type="button"
-              role="tab"
-              className={`${styles.tab} ${mode === 'login' ? styles.tabActive : ''}`}
-              onClick={() => setMode('login')}
-            >
-              {t('auth.tab.login')}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={`${styles.tab} ${mode === 'register' ? styles.tabActive : ''}`}
-              onClick={() => setMode('register')}
-            >
-              {t('auth.tab.register')}
-            </button>
-          </div>
-
-          {mode === 'login' ? (
-            <CredentialsForm
-              key="login"
-              titleKey="auth.login.title"
-              hintKey="auth.login.hint"
-              submitKey="auth.login.submit"
-              swapQKey="auth.login.swap.q"
-              swapCtaKey="auth.login.swap.cta"
-              autocompleteMode="login"
-              action={apiLogin}
-              onAuthed={onAuthed}
-              onSwap={() => setMode('register')}
-            />
-          ) : (
-            <CredentialsForm
-              key="register"
-              titleKey="auth.register.title"
-              hintKey="auth.register.hint"
-              submitKey="auth.register.submit"
-              swapQKey="auth.register.swap.q"
-              swapCtaKey="auth.register.swap.cta"
-              autocompleteMode="register"
-              action={apiRegister}
-              onAuthed={onAuthed}
-              onSwap={() => setMode('login')}
-            />
-          )}
-        </div>
-      </section>
+        {mode === 'login' ? (
+          <CredentialsForm
+            key="login"
+            titleKey="auth.login.title"
+            hintKey="auth.login.hint"
+            submitKey="auth.login.submit"
+            swapQKey="auth.login.swap.q"
+            swapCtaKey="auth.login.swap.cta"
+            autocompleteMode="login"
+            action={apiLogin}
+            onAuthed={onAuthed}
+            onSwap={() => setMode('register')}
+          />
+        ) : (
+          <CredentialsForm
+            key="register"
+            titleKey="auth.register.title"
+            hintKey="auth.register.hint"
+            submitKey="auth.register.submit"
+            swapQKey="auth.register.swap.q"
+            swapCtaKey="auth.register.swap.cta"
+            autocompleteMode="register"
+            action={apiRegister}
+            onAuthed={onAuthed}
+            onSwap={() => setMode('login')}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -367,6 +404,15 @@ function EyeOffIcon() {
       <path d="M10.6 6.1A10.5 10.5 0 0 1 12 6c4 0 7.5 2.5 9.5 7-.6 1.4-1.5 2.6-2.5 3.6" />
       <path d="M6.5 7.5C4.7 8.9 3.4 10.7 2.5 12c2 4.5 5.5 7 9.5 7 1.7 0 3.3-.4 4.7-1.2" />
       <path d="M9.9 9.9a3 3 0 1 0 4.2 4.2" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
 }

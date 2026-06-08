@@ -110,7 +110,7 @@ export function readCookie(
 
 // ── 高阶辅助:从 Agent / cf context 一次性取出已验证身份 ─────────
 
-const COOKIE_NAME = 'eo_token';
+const COOKIE_NAME = 'jwt_token';
 
 /** 校验失败抛 AuthError;调用方 catch 后返回 401 Response。 */
 export class AuthError extends Error {

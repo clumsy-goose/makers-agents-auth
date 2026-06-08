@@ -87,7 +87,7 @@ const en = {
   "welcome.title.register": "Account created",
   "welcome.subtitle": "Auth chain active · two-layer defense engaged",
   "welcome.chain.browser": "Browser",
-  "welcome.chain.browser.note": "Cookie eo_token",
+  "welcome.chain.browser.note": "Cookie jwt_token",
   "welcome.chain.middleware": "Middleware",
   "welcome.chain.middleware.note": "Web Crypto reject",
   "welcome.chain.cf": "Cloud Function",
@@ -95,6 +95,11 @@ const en = {
   "welcome.chain.agent": "Agent Runtime",
   "welcome.chain.agent.note": "node:crypto verify",
   "welcome.dismiss": "Dismiss",
+
+  // Guest mode (anonymous header CTA + modal close)
+  "guest.signin": "Sign in",
+  "auth.modal.dismiss": "Close",
+  "auth.modal.required": "Sign in to continue",
 
   // User pill
   "pill.expand": "Open account menu",

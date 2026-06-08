@@ -144,11 +144,11 @@ makers-agent-auth/
 3. `cloud-functions/auth/{login,register}/index.ts`(Node 20)用 `@neondatabase/serverless` 读写 `users` 表 —— 标签模板 SQL 自动参数化(杜绝 SQLi)
 4. 密码用 **bcryptjs**(cost 10)校验或哈希
 5. **node:crypto** 用 `JWT_SECRET` 签 HS256 JWT
-6. 函数返回 `200 OK` + `Set-Cookie: eo_token=…; HttpOnly; Secure; SameSite=Lax`
+6. 函数返回 `200 OK` + `Set-Cookie: jwt_token=…; HttpOnly; Secure; SameSite=Lax`
 
 ### 阶段二 · Agent 调用(携带 Cookie)
 
-1. 浏览器 POST `/chat`,带 `Cookie: eo_token=…` 与 `Markers-Conversation-Id: <uuid>` 请求头
+1. 浏览器 POST `/chat`,带 `Cookie: jwt_token=…` 与 `Markers-Conversation-Id: <uuid>` 请求头
 2. `middleware.js` 命中 `/chat` 受保护路径,用 **Web Crypto** HS256 验签。失败立即 `401`;成功 `next()` 透传,**不写任何 header** —— Agent 必须独立再验
 3. `agents/chat/index.ts` 入口调 `requireAuth(context)`,用 **node:crypto** HMAC 和**同一个** `JWT_SECRET` 独立验签。**这就是双层防御铁律**:即便有人绕过边缘,Agent 也会 401
 4. Agent 在流首帧 emit 一个 `auth_ok` SSE 事件,前端据此证明第二层验签生效

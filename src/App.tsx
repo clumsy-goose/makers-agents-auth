@@ -9,8 +9,9 @@ import DebugPanel from './components/DebugPanel';
 import CodeViewer from './components/CodeViewer';
 import { I18nProvider, LangToggle, useT, MessageKeys } from './i18n';
 import { deleteSnapshot, loadSnapshot, saveSnapshot } from './lib/chatUiStore';
-import AuthGate from './auth/AuthGate';
+import AuthGate, { useAuthGate } from './auth/AuthGate';
 import UserPill from './auth/UserPill';
+import SignInButton from './auth/SignInButton';
 import WelcomeFlash from './auth/WelcomeFlash';
 import AuthChainTrace from './auth/AuthChainTrace';
 import styles from './App.module.css';
@@ -54,19 +55,37 @@ export default function App() {
     <I18nProvider>
       <LangToggle />
       <AuthGate>
-        {(user, signOut) => (
-          <>
-            <UserPill user={user} onSignOut={signOut} />
-            <WelcomeFlash />
-            <AppInner />
-          </>
-        )}
+        <AppShell />
       </AuthGate>
     </I18nProvider>
   );
 }
 
-function AppInner() {
+/**
+ * AppShell — 在 AuthGate 上下文内,根据登录状态选择头部右侧的 pill 形态。
+ *   authed → UserPill(用户徽章 + 账户菜单)
+ *   guest  → SignInButton(主动唤起登录弹窗)
+ * 主体 AppInner 永远渲染 — 未登录用户也能看到 homepage,
+ * 仅在调用受保护接口时才会触发 401 → 自动弹窗。
+ */
+function AppShell() {
+  const { user, signOut, openSignIn } = useAuthGate();
+  return (
+    <>
+      {user
+        ? <UserPill user={user} onSignOut={signOut} />
+        : <SignInButton onClick={openSignIn} />}
+      <WelcomeFlash />
+      <AppInner isAuthed={user !== null} />
+    </>
+  );
+}
+
+interface AppInnerProps {
+  isAuthed: boolean;
+}
+
+function AppInner({ isAuthed }: AppInnerProps) {
   const { t } = useT();
   const buildLamps = useCallback((): ToolLampState[] =>
     LAMP_IDS.map(id => ({
@@ -119,6 +138,13 @@ function AppInner() {
   }, [messages]);
 
   useEffect(() => {
+    // 访客模式不拉历史 — /history 是受保护接口,直接探测会触发 401 → 自动弹窗,
+    // 这对未登录浏览首页的体验是种打扰。等用户主动登录后再拉。
+    if (!isAuthed) {
+      setHistoryLoading(false);
+      return;
+    }
+
     // First visit: no existing conversation → skip history fetch for instant load
     if (!hadExistingConversationIdRef.current) {
       setHistoryLoading(false);
@@ -157,7 +183,7 @@ function AppInner() {
         setHistoryLoading(false);
       });
     });
-  }, []);
+  }, [isAuthed]);
 
   /** Update the current bot message's content via an updater function. */
   const updateBotMessage = useCallback((updater: (content: string) => string) => {

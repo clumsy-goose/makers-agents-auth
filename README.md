@@ -144,11 +144,11 @@ The template implements the **"middleware + cloud-functions + Agent self-verify"
 3. `cloud-functions/auth/{login,register}/index.ts` (Node 20) reads / writes the `users` table via `@neondatabase/serverless` — tag-template SQL parameterises automatically (no SQL injection).
 4. The password is verified or hashed with **bcryptjs** (cost 10).
 5. **node:crypto** signs an HS256 JWT using `JWT_SECRET`.
-6. The function returns `200 OK` with `Set-Cookie: eo_token=…; HttpOnly; Secure; SameSite=Lax`.
+6. The function returns `200 OK` with `Set-Cookie: jwt_token=…; HttpOnly; Secure; SameSite=Lax`.
 
 ### Stage 2 · Agent call (with cookie)
 
-1. Browser POSTs `/chat` with `Cookie: eo_token=…` and the `Markers-Conversation-Id: <uuid>` header.
+1. Browser POSTs `/chat` with `Cookie: jwt_token=…` and the `Markers-Conversation-Id: <uuid>` header.
 2. `middleware.js` matches `/chat` against its protected-path list and verifies the JWT with **Web Crypto** HS256. On failure it short-circuits with `401`. On success it `next()`s the request through, **without writing any header** — the agent must verify on its own.
 3. `agents/chat/index.ts` calls `requireAuth(context)`, which uses **node:crypto** HMAC and the same `JWT_SECRET` to verify the cookie independently. **This is the dual-defense rule**: even if the edge is bypassed, the agent still 401s.
 4. The agent emits an `auth_ok` SSE event so the front end can prove the second-layer verification ran.

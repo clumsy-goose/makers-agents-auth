@@ -69,7 +69,7 @@ export async function onRequestPost(context: any): Promise<Response> {
   // 签发 JWT
   const ttl = Number(env.JWT_TTL_SECONDS ?? JWT_TTL_DEFAULT);
   const token = signJwt({ sub: user.id, username: user.username }, secret, ttl);
-  const cookie = serializeCookie('eo_token', token, {
+  const cookie = serializeCookie('jwt_token', token, {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',

@@ -5,11 +5,12 @@
  * 方案一 · 边缘节点早拒鉴权层(Edge V8 Runtime)。
  *
  * 职责严格对齐 pages-agent-auth-flow.html 第②/⑨步:
- *   - 路径白名单匹配:登录/注册/静态资源/前端登录页 → next() 透传
- *   - 受保护路径(/chat, /stop, /history, /agents/*):
- *       - Web Crypto HS256 验签 Cookie eo_token
+ *   - matcher 是受保护路径的**唯一真理来源**:命中即验签,未命中根本不进入本文件
+ *   - 受保护路径(/chat, /stop, /history, /agents/*, /admin/*):
+ *       - Web Crypto HS256 验签 Cookie jwt_token
  *       - 失败 → 401 立即拒绝
- *       - 成功 → next() 透传(不写任何 header,Agent 自己再独立验签)
+ *       - 成功 → next() 透传(不写任何 header,Agent / cf 自己再独立验签)
+ *   - /auth/*、静态资源、前端路由不在 matcher 中,平台路由直接派发,不经此函数
  *
  * 重要约束:
  *   - 仅 Web Crypto API (globalThis.crypto.subtle),禁用 node:crypto / process.*
@@ -18,29 +19,8 @@
  * 本文件由 EdgeOne CLI 自动加载,无需在 edgeone.json 中显式注册。
  */
 
-const COOKIE_NAME = 'eo_token';
+const COOKIE_NAME = 'jwt_token';
 const ALG = 'HS256';
-
-// ── matcher 白名单(放行) ─────────────────────────────────
-// 匹配优先级:白名单 > 受保护路径
-// 凡命中以下前缀的请求,直接 next() 透传,不经过验签
-const PUBLIC_PREFIXES = [
-  '/auth/',          // 登录注册接口 (cloud-functions/auth/*)
-  '/login',          // 前端登录页
-  '/register',       // 前端注册页
-  '/assets/',        // Vite 构建产物
-  '/favicon',
-  '/index.html',
-  '/_health',
-];
-
-// 受保护路径(必须验签)
-const PROTECTED_PREFIXES = [
-  '/chat',
-  '/stop',
-  '/history',
-  '/agents/',
-];
 
 // ── base64url helpers ─────────────────────────────────────
 // btoa/atob 在 Edge 环境可用,用其拼出 base64url 编解码
@@ -53,13 +33,6 @@ function b64urlToBytes(str) {
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
-}
-
-/** @param {Uint8Array} bytes */
-function bytesToB64url(bytes) {
-  let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function utf8ToBytes(str) {
@@ -149,62 +122,37 @@ function readCookie(headers, key) {
   return null;
 }
 
-// ── 路径匹配 ─────────────────────────────────────────────
-
-function matchesPrefix(pathname, prefixes) {
-  for (const p of prefixes) {
-    if (pathname === p || pathname.startsWith(p)) return true;
-  }
-  return false;
+function unauthorized(reason) {
+  return new Response(
+    JSON.stringify({ error: 'unauthorized', reason }),
+    { status: 401, headers: { 'Content-Type': 'application/json' } },
+  );
 }
 
 // ── 主函数 ───────────────────────────────────────────────
+// 进入此函数的请求 = 命中 matcher = 受保护路径,直接验签即可。
 
 export async function middleware(context) {
   const { request, next, env } = context;
-  const url = new URL(request.url);
-  const pathname = url.pathname;
-
-  // 白名单优先放行
-  if (matchesPrefix(pathname, PUBLIC_PREFIXES) || pathname === '/') {
-    return next();
-  }
-
-  // 仅对受保护路径执行验签;其他路径(如未来新加的公开路由)默认放行
-  if (!matchesPrefix(pathname, PROTECTED_PREFIXES)) {
-    return next();
-  }
-
-  // 验签
   const token = readCookie(request.headers, COOKIE_NAME);
-  if (!token) {
-    return new Response(
-      JSON.stringify({ error: 'unauthorized', reason: 'no auth cookie' }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
+  if (!token) return unauthorized('no auth cookie');
   try {
     await verifyJwt(token, env.JWT_SECRET);
   } catch (e) {
-    return new Response(
-      JSON.stringify({ error: 'unauthorized', reason: e.message || 'verify failed' }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } },
-    );
+    return unauthorized(e.message || 'verify failed');
   }
-
-  // 验签通过 — 透传到下游(Agent / cf 会再独立验签一次)
   return next();
 }
 
 // ── 路由匹配配置 ─────────────────────────────────────────
-// 把 mw 限定在以下路径,避免对静态资源做无谓计算
+// matcher 即受保护路径白名单 — 唯一真理来源。
+// 未命中的路径(/auth/*、静态资源、前端路由)由平台路由直接派发,不经本文件。
 export const config = {
   matcher: [
     '/chat/:path*',
     '/stop/:path*',
     '/history/:path*',
     '/agents/:path*',
-    '/auth/:path*',
+    '/admin/:path*',
   ],
 };

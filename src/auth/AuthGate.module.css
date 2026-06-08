@@ -1,108 +1,99 @@
 /* ============================================================================
  * AuthGate.module.css
  * --------------------------------------------------------------------------
- * 严格遵循 design-taste-frontend-v1 (VARIANCE=8, MOTION=6, DENSITY=4):
- *   - 禁用居中 hero / 用 Split Screen 50/50 不对称布局
- *   - 禁用 Inter / 用项目已有 Syne(display) + DM Mono(body)
- *   - 禁用紫蓝 / 用项目主色金色 accent
- *   - 完整 loading / error / 物理反馈 (-translate-y / scale)
- *   - 移动端强制单列
- *   - 所有动画用 transform / opacity,animation-delay 级联入场
+ * 2026-06 重构:从 split-screen 整页拦截 → 居中模态弹窗。
+ * 视觉上保持原表单卡(.card / .form / .input / .submit / .alert)的原貌,
+ * 只是把外壳从 grid-1.1fr-1fr 替换成全屏 overlay + 居中卡。
+ *
+ * design-taste-frontend-v1 baseline (VARIANCE=8 / MOTION=6 / DENSITY=4):
+ *   - 玻璃磨砂 backdrop + 内层 1px 高光边
+ *   - 入场弹簧曲线 cubic-bezier(0.16, 1, 0.3, 1)
+ *   - 物理反馈 active: translateY(1px)
+ *   - 移动端 padding 退化
  * ========================================================================== */
 
-.shell {
+/* 探测期占位 — 仅在启动 fetchMe() 期间短暂存在,防止内容闪一下 */
+.probeShell {
   position: fixed;
   inset: 0;
   background: var(--bg-base);
-  color: var(--text-primary);
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  overflow: hidden;
-  isolation: isolate;
-}
-
-/* 装饰性 mesh 渐变(blob)— 极慢漂浮,提示这是"活的"界面 */
-.blob {
-  position: absolute;
-  width: 540px;
-  height: 540px;
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.34;
   pointer-events: none;
-  z-index: 0;
-}
-.blobA {
-  top: -180px;
-  left: -120px;
-  background: radial-gradient(circle, var(--accent-gold-glow), transparent 70%);
-  animation: drift1 28s ease-in-out infinite alternate;
-}
-.blobB {
-  bottom: -200px;
-  right: -160px;
-  width: 620px;
-  height: 620px;
-  background: radial-gradient(circle, #5a4a18, transparent 70%);
-  animation: drift2 36s ease-in-out infinite alternate;
 }
 
-@keyframes drift1 {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  100% { transform: translate3d(70px, 50px, 0) scale(1.08); }
-}
-@keyframes drift2 {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  100% { transform: translate3d(-90px, -40px, 0) scale(1.05); }
-}
+/* ── Modal Overlay ─────────────────────────────────────── */
 
-/* ── 左侧:文案 / 标识 ─────────────────────────────────────── */
-
-.left {
-  position: relative;
-  z-index: 1;
-  padding: 64px 56px;
-  display: grid;
-  grid-template-rows: auto 1fr auto;   /* brand · heroBlock · signals — 中间一格吸收剩余空间 */
-  row-gap: 32px;
-  border-right: 1px solid var(--bg-border);
-}
-
-.brand {
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;             /* 在 UserPill (1001) / menu (1003) 之上 */
   display: flex;
   align-items: center;
-  gap: 14px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.01em;
-  animation: revealUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 6, 12, 0.62);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  animation: overlayIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.brandMark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent-gold), #b89028);
-  position: relative;
-}
-.brandMark::after {
-  content: '';
-  position: absolute;
-  inset: 6px;
-  border-radius: 6px;
-  background: var(--bg-base);
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-.heroBlock {
-  align-self: center;        /* 垂直居中于 1fr 中间格 */
+.modalCard {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  /* 不再限制 max-width — 让 headline 自然 nowrap;deck 单独限宽保证可读性 */
+  gap: 22px;
+  padding: 36px 32px 32px;
+  border-radius: 18px;
+  background: rgba(20, 18, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 60px -20px rgba(0, 0, 0, 0.65),
+    0 12px 24px -8px rgba(0, 0, 0, 0.45);
+  animation: cardIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.eyebrow {
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modalClose {
+  appearance: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 160ms, background 160ms, transform 140ms;
+}
+.modalClose:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+.modalClose:active {
+  transform: translateY(1px);
+}
+.modalClose svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modalEyebrow {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -110,108 +101,15 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  animation: revealUp 0.7s 0.06s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.eyebrow::before {
+.modalEyebrow::before {
   content: '';
-  width: 28px;
+  width: 22px;
   height: 1px;
   background: var(--accent-gold);
 }
-.headline {
-  /*
-   * 不用 var(--font-display)(Syne),改用 Outfit。
-   * 原因:Google Fonts 的 Syne 在某些 weight + italic 下,glyph descender
-   * 渲染像素超出字体声明的 descent metric,Chromium 按声明 metric 裁切,
-   * 导致 g/y 底部被切。无论 line-height/padding/overflow 怎么调都救不回来。
-   * Outfit 是 design-taste-frontend skill 推荐的现代几何 sans,glyph 度量正常,
-   * 风格与 Syne 接近,可在不破坏品牌视觉的前提下解决问题。
-   */
-  font-family: 'Outfit', 'Syne', sans-serif;
-  font-size: clamp(36px, 4vw, 60px);
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-  color: var(--text-primary);
-  white-space: nowrap;
-  animation: revealUp 0.8s 0.12s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.headline em {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--accent-gold);
-}
-.deck {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--text-secondary);
-  max-width: 52ch;          /* 正文单独限宽,避免长行难读 */
-  animation: revealUp 0.8s 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
 
-.signals {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px 32px;
-  padding-top: 32px;
-  border-top: 1px solid var(--bg-border);
-  animation: revealUp 0.8s 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.signal {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.signalLabel {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--text-muted);
-}
-.signalValue {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-.signalValue .pulse {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #3ecf8e;
-  margin-right: 8px;
-  vertical-align: middle;
-  box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.6);
-  animation: pulseDot 2s infinite;
-}
-@keyframes pulseDot {
-  0%   { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.5); }
-  70%  { box-shadow: 0 0 0 12px rgba(62, 207, 142, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0); }
-}
-
-/* ── 右侧:表单 ────────────────────────────────────────── */
-
-.right {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 56px 56px 56px 96px;
-}
-.card {
-  width: 100%;
-  max-width: 440px;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  animation: revealUp 0.7s 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
+/* ── Tabs ─────────────────────────────────────────────── */
 
 .tabs {
   display: inline-flex;
@@ -246,13 +144,15 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* ── Form ─────────────────────────────────────────────── */
+
 .formTitle {
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
-  line-height: 1.15;
+  line-height: 1.2;
 }
 .formHint {
   font-family: var(--font-mono);
@@ -261,13 +161,11 @@
   line-height: 1.5;
 }
 
-/* 表单本体 — 用 flex gap 控制元素间距,彻底消除负 margin */
 .form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
-/* 标题块:title 与 hint 紧贴(6px),与下方表单元素拉开 */
 .formHeader {
   display: flex;
   flex-direction: column;
@@ -313,7 +211,6 @@
   border-color: #b94a4a;
   box-shadow: 0 0 0 3px rgba(185, 74, 74, 0.12);
 }
-/* 密码框带切换按钮时,留出右侧 44px 空间 */
 .inputWithToggle {
   padding-right: 44px;
 }
@@ -364,57 +261,7 @@
   height: 18px;
   display: block;
 }
-/* 密码框带切换按钮时,留出右侧 44px 空间 */
-.inputWithToggle {
-  padding-right: 44px;
-}
 
-/* ── 密码可见性切换 ─────────────────────────────────── */
-
-.passwordWrap {
-  position: relative;
-  display: block;
-}
-.passwordToggle {
-  appearance: none;
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 6px;
-  transition: color var(--transition-fast),
-              background var(--transition-fast),
-              transform var(--transition-fast);
-}
-.passwordToggle:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-elevated);
-}
-.passwordToggle:active:not(:disabled) {
-  transform: translateY(calc(-50% + 1px));
-}
-.passwordToggle:focus-visible {
-  outline: 2px solid var(--accent-gold);
-  outline-offset: 1px;
-}
-.passwordToggle:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.passwordToggle svg {
-  width: 18px;
-  height: 18px;
-  display: block;
-}
 .helper {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -526,36 +373,16 @@
 }
 .swapBtn:hover { text-decoration: underline; }
 
-/* ── 入场动画 ─────────────────────────────────────── */
+/* ── 移动端适配 ─────────────────────────────────────── */
 
-/*
- * 使用 2D translateY 而非 translate3d。
- * translate3d 会把元素永久提升到 GPU 合成层,
- * 层的边界按 layout box 计算 — descender 超出 line-box 的部分会被层切掉。
- * 2D transform 不触发层提升,glyph 视觉延伸不受影响。
- */
-@keyframes revealUp {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── 移动端单列(VARIANCE 强制 fallback) ──────────────── */
-
-@media (max-width: 900px) {
-  .shell {
-    grid-template-columns: 1fr;
-    overflow: auto;
+@media (max-width: 540px) {
+  .modalOverlay {
+    padding: 16px;
+    align-items: flex-end;
   }
-  .left {
-    padding: 32px 24px;
-    border-right: none;
-    border-bottom: 1px solid var(--bg-border);
-  }
-  .right {
-    padding: 32px 24px;
-  }
-  .signals {
-    padding-top: 28px;
-    margin-top: 28px;
+  .modalCard {
+    padding: 32px 24px 28px;
+    max-width: none;
+    border-radius: 16px;
   }
 }

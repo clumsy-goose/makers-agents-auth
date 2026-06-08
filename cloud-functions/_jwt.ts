@@ -169,7 +169,7 @@ export function serializeCookie(name: string, value: string, opts: CookieOptions
 
 // ── 高阶辅助:与 agents/_jwt.ts 对齐 ──────────────────────────
 
-export const COOKIE_NAME = 'eo_token';
+export const COOKIE_NAME = 'jwt_token';
 
 export class AuthError extends Error {
   constructor(public readonly reason: string) {
