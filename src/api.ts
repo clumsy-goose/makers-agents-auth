@@ -40,44 +40,19 @@ export class AuthRequiredError extends Error {
   }
 }
 
-/** 通用 401 探测 — 任何业务请求拿到 401 都视为登录失效 */
+/** 派发全局 401 信号 — AuthGate 监听后弹登录窗 */
+function dispatchAuthRequired(): void {
+  window.dispatchEvent(new CustomEvent('eo:auth-required'));
+}
+
+/** 通用 401 探测 — 任何业务请求拿到 401 都视为登录失效(抛错版,适合非流式调用) */
 function check401<T extends Response>(res: T): T {
   if (res.status === 401) {
-    // 通知全局监听者(App 会订阅此事件)
-    window.dispatchEvent(new CustomEvent('eo:auth-required'));
+    dispatchAuthRequired();
     throw new AuthRequiredError();
   }
   return res;
 }
-
-// ── Auth Chain Trace 事件 ────────────────────────────────────
-// AuthChainTrace 组件订阅以下 6 个 CustomEvent,实时点亮链路节点。
-// 命名:eo:trace:{phase}, detail 携带 traceId + ts 用于多请求并发去重 / 时延计算。
-
-export type TracePhase =
-  | 'request-start'    // fetch 发起 — Browser 节点亮
-  | 'mw-pass'          // 收到 HTTP 响应(200) — Middleware 节点亮(401 永远走不到这)
-  | 'agent-verified'   // Agent emit auth_ok — Agent 节点亮
-  | 'neon-start'       // Agent 开始查 Neon(neon_query_start)— Neon 节点 pending→active
-  | 'neon-done'        // Agent 查完 Neon(neon_query_done) — Neon 节点 done(含 rows / ms)
-  | 'first-delta'      // 第一个 text_delta — Response 节点亮
-  | 'complete'         // done 事件 — 整链路完成
-  | 'error';           // 失败 — 当前进展节点标红
-
-interface TraceEventDetail {
-  traceId: string;
-  phase: TracePhase;
-  ts: number;
-  status?: number;     // 仅 mw-pass / error 时有
-  reason?: string;     // 仅 error 时有
-  meta?: Record<string, unknown>;
-}
-
-function emitTrace(detail: TraceEventDetail): void {
-  window.dispatchEvent(new CustomEvent<TraceEventDetail>('eo:trace', { detail }));
-}
-
-export type { TraceEventDetail };
 
 export async function login(username: string, password: string): Promise<AuthUser> {
   const res = await fetch(API.authLogin, {
@@ -143,6 +118,11 @@ export interface StreamCallbacks {
   onDone: () => void;
   onError: (err: Error) => void;
   onRawEvent?: (event: RawSseEvent) => void;
+  /**
+   * 401 时(登录失效)优先调用,onError 不会再触发。
+   * 上层据此清理乐观插入的占位气泡,而不必把它当作"请求失败"展示。
+   */
+  onAuthRequired?: () => void;
 }
 
 /** Get conversation history for restoring the chat window after page refresh. */
@@ -210,13 +190,6 @@ export function sendMessageStream(
   conversationId?: string,
 ): AbortController {
   const ctrl = new AbortController();
-  // 每次请求一个 traceId,便于 AuthChainTrace 跟踪并发或快速连发
-  const traceId = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  let firstDeltaSeen = false;
-
-  emitTrace({ traceId, phase: 'request-start', ts: Date.now() });
 
   (async () => {
     try {
@@ -236,15 +209,15 @@ export function sendMessageStream(
       });
 
       if (res.status === 401) {
-        emitTrace({ traceId, phase: 'error', ts: Date.now(), status: 401, reason: 'middleware rejected' });
-        check401(res);
+        // 登录失效:派发全局事件让 AuthGate 弹登录窗,
+        // 调用 onAuthRequired 让上层清理占位气泡,然后直接退出 —
+        // 不走 onError,避免在聊天窗里展示"请求失败"误导用户。
+        dispatchAuthRequired();
+        callbacks.onAuthRequired?.();
+        return;
       }
 
-      // 走到这里说明 HTTP 状态已下来,且不是 401 — middleware 已 next() 放行
-      emitTrace({ traceId, phase: 'mw-pass', ts: Date.now(), status: res.status });
-
       if (!res.ok) {
-        emitTrace({ traceId, phase: 'error', ts: Date.now(), status: res.status });
         callbacks.onError(new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`));
         return;
       }
@@ -276,36 +249,17 @@ export function sendMessageStream(
             part,
             callbacks,
             () => { doneReceived = true; },
-            (eventType, parsed) => {
-              // 把 SSE 信号映射到 trace phase
-              if (eventType === 'auth_ok') {
-                emitTrace({ traceId, phase: 'agent-verified', ts: Date.now(), meta: parsed as Record<string, unknown> });
-              } else if (eventType === 'neon_query_start') {
-                emitTrace({ traceId, phase: 'neon-start', ts: Date.now(), meta: parsed as Record<string, unknown> });
-              } else if (eventType === 'neon_query_done') {
-                emitTrace({ traceId, phase: 'neon-done', ts: Date.now(), meta: parsed as Record<string, unknown> });
-              } else if (eventType === 'text_delta' && !firstDeltaSeen) {
-                firstDeltaSeen = true;
-                emitTrace({ traceId, phase: 'first-delta', ts: Date.now() });
-              } else if (eventType === 'done') {
-                emitTrace({ traceId, phase: 'complete', ts: Date.now() });
-              } else if (eventType === 'error') {
-                emitTrace({ traceId, phase: 'error', ts: Date.now(), reason: (parsed as { message?: string })?.message });
-              }
-            },
           );
         }
       }
 
       // Fallback: trigger done only if backend did not send done event
       if (!doneReceived) {
-        emitTrace({ traceId, phase: 'complete', ts: Date.now() });
         callbacks.onDone();
       }
     } catch (err) {
       // AbortError does not trigger error callback
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      emitTrace({ traceId, phase: 'error', ts: Date.now(), reason: (err as Error)?.message });
       callbacks.onError(err instanceof Error ? err : new Error(String(err)));
     }
   })();
@@ -318,7 +272,6 @@ function dispatchSseChunk(
   part: string,
   cb: StreamCallbacks,
   markDone: () => void,
-  onSignal?: (eventType: string, parsed: unknown) => void,
 ): void {
   let eventType = '';
   let data = '';
@@ -345,8 +298,6 @@ function dispatchSseChunk(
       });
     }
 
-    onSignal?.(eventType, parsed);
-
     switch (eventType) {
       case 'text_delta':
         cb.onTextDelta(parsed.delta);
@@ -361,7 +312,8 @@ function dispatchSseChunk(
         markDone();
         cb.onDone();
         break;
-      // 'auth_ok' 不需要回调,只用于 onSignal trace
+      // auth_ok / neon_query_start / neon_query_done 仅经 onRawEvent 进 DebugPanel,
+      // 不再触发任何前端动效或链路高亮。
     }
   } catch {
     if (cb.onRawEvent) {

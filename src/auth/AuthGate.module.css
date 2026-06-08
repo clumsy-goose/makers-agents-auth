@@ -102,12 +102,6 @@
   align-items: center;
   gap: 10px;
 }
-.modalEyebrow::before {
-  content: '';
-  width: 22px;
-  height: 1px;
-  background: var(--accent-gold);
-}
 
 /* ── Tabs ─────────────────────────────────────────────── */
 

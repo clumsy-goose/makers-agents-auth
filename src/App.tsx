@@ -12,8 +12,6 @@ import { deleteSnapshot, loadSnapshot, saveSnapshot } from './lib/chatUiStore';
 import AuthGate, { useAuthGate } from './auth/AuthGate';
 import UserPill from './auth/UserPill';
 import SignInButton from './auth/SignInButton';
-import WelcomeFlash from './auth/WelcomeFlash';
-import AuthChainTrace from './auth/AuthChainTrace';
 import styles from './App.module.css';
 
 const LAMP_IDS = ['get_weather', 'get_clothing_advice', 'translate_text', 'text_statistics'] as const;
@@ -75,7 +73,6 @@ function AppShell() {
       {user
         ? <UserPill user={user} onSignOut={signOut} />
         : <SignInButton onClick={openSignIn} />}
-      <WelcomeFlash />
       <AppInner isAuthed={user !== null} />
     </>
   );
@@ -256,6 +253,14 @@ function AppInner({ isAuthed }: AppInnerProps) {
         updateBotMessage(content => content || t("status.error"));
         finishStream();
       },
+
+      // 401 时只清理占位气泡 + 关 loading,登录弹窗由 AuthGate 监听全局事件自动弹出。
+      // 不写"请求失败"文案 — 这种状态下展示后端错误会误导用户。
+      onAuthRequired() {
+        const orphanId = botMsgIdRef.current;
+        setMessages(prev => prev.filter(m => m.id !== orphanId));
+        finishStream();
+      },
     }, conversationIdRef.current);
 
     abortCtrlRef.current = ctrl;
@@ -325,9 +330,6 @@ function AppInner({ isAuthed }: AppInnerProps) {
                 <div className={styles.historySpinner} />
               </div>
             )}
-          </div>
-          <div className={styles.traceShell}>
-            <AuthChainTrace />
           </div>
           <ChatInput onSend={handleSend} onStop={handleStop} onClear={handleClearHistory} disabled={loading} />
         </div>

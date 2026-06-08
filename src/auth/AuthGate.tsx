@@ -38,7 +38,6 @@ import {
   type AuthUser,
 } from '../api';
 import { useT, type MessageKeys } from '../i18n';
-import { markJustAuthed } from './WelcomeFlash';
 import styles from './AuthGate.module.css';
 
 type Mode = 'login' | 'register';
@@ -286,8 +285,6 @@ function CredentialsForm({
     setSubmitting(true);
     try {
       const u = await action(username.trim(), password);
-      // 标记 just-authed,WelcomeFlash 首次挂载会消费这个 sessionStorage 项
-      markJustAuthed(autocompleteMode);
       onAuthed(u);
     } catch (err) {
       const code = (err as Error).message;
@@ -295,7 +292,7 @@ function CredentialsForm({
     } finally {
       setSubmitting(false);
     }
-  }, [username, password, action, onAuthed, autocompleteMode]);
+  }, [username, password, action, onAuthed]);
 
   const passwordAutocomplete = autocompleteMode === 'register' ? 'new-password' : 'current-password';
 

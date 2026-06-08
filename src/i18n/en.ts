@@ -82,20 +82,6 @@ const en = {
   "auth.err.auth_required": "Session expired, please sign in again",
   "auth.err.unknown": "Unknown error",
 
-  // Welcome flash
-  "welcome.title.login": "Welcome back",
-  "welcome.title.register": "Account created",
-  "welcome.subtitle": "Auth chain active · two-layer defense engaged",
-  "welcome.chain.browser": "Browser",
-  "welcome.chain.browser.note": "Cookie jwt_token",
-  "welcome.chain.middleware": "Middleware",
-  "welcome.chain.middleware.note": "Web Crypto reject",
-  "welcome.chain.cf": "Cloud Function",
-  "welcome.chain.cf.note": "bcrypt + sign JWT",
-  "welcome.chain.agent": "Agent Runtime",
-  "welcome.chain.agent.note": "node:crypto verify",
-  "welcome.dismiss": "Dismiss",
-
   // Guest mode (anonymous header CTA + modal close)
   "guest.signin": "Sign in",
   "auth.modal.dismiss": "Close",
