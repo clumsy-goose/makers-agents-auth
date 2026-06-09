@@ -1,11 +1,11 @@
 const en = {
   // Header
-  "app.title": "OpenAI Agents Starter",
-  "app.subtitle": "Running on EdgeOne Makers with session memory & Agent Tools",
+  "app.title": "Agents Login Auth Starter",
+  "app.subtitle": "EdgeOne Makers · Edge middleware + Cloud Functions + Agent two-layer auth",
 
   // Empty state
-  "empty.title": "OpenAI Agents Starter",
-  "empty.hint": "I'm an OpenAI Agent running on EdgeOne with custom tools and session memory. I can help with weather, clothing advice, translation, and text statistics.",
+  "empty.title": "Agents Login Auth Starter",
+  "empty.hint": "Sign in to start chatting. This demo shows how to protect Agent endpoints with JWT auth on EdgeOne Makers using middleware + Cloud Functions. The Agent itself ships with session memory and custom tools (weather, clothing, translation, text stats).",
   "empty.features": "EdgeOne Store · Session Memory · Agent Tools",
 
   // Chat input

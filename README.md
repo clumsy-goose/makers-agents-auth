@@ -1,4 +1,4 @@
-# OpenAI Agents Auth Starter
+# Agents Login Auth Starter
 
 **Language:** English | [简体中文](./README_zh-CN.md)
 

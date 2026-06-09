@@ -1,11 +1,11 @@
 const zh = {
   // Header
-  "app.title": "OpenAI Agents Starter",
-  "app.subtitle": "基于 EdgeOne Makers 运行，支持会话记忆和 Agent 工具",
+  "app.title": "Agent 登录鉴权模板",
+  "app.subtitle": "EdgeOne Makers · 边缘中间件 + Cloud Functions + Agent 双层鉴权",
 
   // Empty state
-  "empty.title": "OpenAI Agents Starter",
-  "empty.hint": "我是运行在 EdgeOne 上的 OpenAI Agent，拥有自定义工具和会话记忆。我可以帮助你查询天气、穿衣建议、翻译和文本统计。",
+  "empty.title": "Agent 登录鉴权模板",
+  "empty.hint": "登录后即可对话。本 Demo 演示如何用 EdgeOne Makers 的中间件 + Cloud Functions 给 Agent 接口加上 JWT 鉴权,Agent 本身具备会话记忆与自定义工具(天气、穿衣、翻译、文本统计)。",
   "empty.features": "EdgeOne Store · 会话记忆 · Agent 工具",
 
   // Chat input
