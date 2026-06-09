@@ -1,34 +1,280 @@
-# OpenAI Agents Auth Starter `<!-- TODO: confirm display name -->`
+# OpenAI Agents Auth Starter
 
 **Language:** English | [简体中文](./README_zh-CN.md)
 
-> A streaming chat agent built with the **OpenAI Agents SDK** on EdgeOne Makers — with end-to-end authentication (edge middleware + cloud-functions + Agent self-verify) backed by Neon Postgres.
+> A streaming chat agent template built with the **OpenAI Agents SDK** on EdgeOne Makers — with end-to-end authentication (edge middleware + Cloud Functions + Agent self-verify) backed by Neon Postgres.
 
-**Framework:** OpenAI Agents SDK · **Category:** Chat `<!-- TODO: confirm category -->` · **Language:** TypeScript
+**Framework:** OpenAI Agents SDK · **Category:** Quick Start · **Language:** TypeScript
 
 [![Deploy to EdgeOne Makers](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/makers/new?template=makers-agent-auth&from=within&fromAgent=1&agentLang=typescript)
 
 ## Overview
 
-A production-shaped chat-agent template that demonstrates the **two-layer defense** authentication scheme on EdgeOne Pages: Web Crypto early-reject at the edge, plus independent JWT re-verification inside the Agent runtime — so the chat path stays safe even if the edge is bypassed. Account state lives in Neon Postgres over HTTPS.
+Agent applications typically call models and tools. Without login authentication, anyone can hit the Agent endpoints directly, which leads to:
 
-- **Two-layer auth defense** — `middleware.js` rejects unsigned requests at the edge; `agents/chat` re-verifies HMAC independently with the same `JWT_SECRET`
-- **SSE streaming chat** — token-by-token output and tool-call events powered by OpenAI Agents SDK
-- **Neon Postgres over HTTPS** — `@neondatabase/serverless` with parameterised tag-template SQL; no TCP driver, no DB ops
-- **bcrypt-hashed passwords** — register / login / user / logout cloud-functions running on Node 20
-- **Anonymous-first UI** — guests browse the homepage freely; the login modal pops only when a protected request hits 401 (or on guest-Send), and auto-resends the original message after sign-in
-- **Custom tools, session memory, stop generation** — all the Agent primitives wired end to end
+- **Resource abuse** — anonymous traffic burns through your LLM and tool-call quota.
+- **Endpoint bypass** — attackers skip the frontend page and call `/chat`, `/stop` and other endpoints directly.
+
+Using this [reference project](https://github.com/clumsy-goose/makers-agent-auth/tree/main) as a working example, this doc shows how to build a login-auth flow on the Makers platform: Cloud Functions handle login / register and JWT signing, while the platform middleware rejects unauthenticated requests at the edge. The Agent runtime then re-verifies the same JWT independently — so even if someone bypasses the edge, the Agent still 401s.
+
+## Project Files & Responsibilities
+
+| File / Module               | Responsibility                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `middleware.js`           | Platform middleware — verifies the cookie JWT on protected paths; 401 on failure,`next()` on success |
+| `cloud-functions/auth/*`  | Login, register, logout, current user — verifies credentials and signs the JWT                         |
+| `agents/chat/index.ts`    | Agent entry — demonstrates auth verification and streaming responses                                   |
+| `db/migrations/users.sql` | Neon database schema                                                                                    |
+
+## How It Works
+
+### Core flow
+
+```text
+Browser
+   │
+   │  Login / Register
+   ▼
+cloud-functions/auth/*
+   │  Verify credentials
+   │  Read / write Neon
+   │  Sign JWT
+   ▼
+Browser stores HttpOnly cookie: jwt_token
+   │
+   │  Call Agent
+   ▼
+middleware.js
+   │  Verify cookie JWT
+   │  Invalid → 401
+   │  Valid   → next()
+   ▼
+Agent Runtime
+   │  requireAuth(context) re-verifies
+   │
+   ▼
+SSE stream / Agent response
+```
+
+### JWT payload
+
+```ts
+interface JwtPayload {
+  sub: string;       // users.id, UUID v4
+  username: string;  // username
+  iat: number;       // issued-at, seconds since epoch
+  exp: number;       // expires-at, seconds since epoch
+}
+```
+
+## Request Flows
+
+### Login / Register
+
+```text
+Browser
+  │
+  │ ① POST /auth/login or /auth/register
+  ▼
+middleware.js
+  │
+  │ ② /auth/* is not in the matcher — pass through
+  ▼
+cloud-functions/auth/*
+  │
+  │ ③ Validate username / password
+  │ ④ Read or write the Neon users table
+  │ ⑤ bcrypt verify or hash password_hash
+  │ ⑥ Sign JWT with JWT_SECRET
+  ▼
+Browser
+  │
+  │ ⑦ Set-Cookie: jwt_token=...
+  ▼
+Signed in
+```
+
+Key rules:
+
+- `/auth/login` and `/auth/register` must be public endpoints
+- They must NOT be added to `middleware.config.matcher`
+- After sign-in the token lives in an **HttpOnly cookie** only — never exposed to frontend JS
+
+### Agent call
+
+```text
+Browser
+  │
+  │ ⑧ POST /chat with Cookie: jwt_token=...
+  ▼
+middleware.js
+  │
+  │ ⑨ Web Crypto verifies the JWT
+  │    Failure → 401
+  │    Success → next()
+  ▼
+Agent Runtime
+  │
+  │ ⑩ requireAuth(context) re-verifies
+  ▼
+Browser
+  │
+  │ ⑪ SSE stream of the Agent response
+```
+
+Key rules:
+
+- The middleware **only forwards** the original request after a successful verify
+- The Agent reads the JWT from the cookie and verifies it independently
+
+## Middleware — Key Implementation
+
+File: `middleware.js`
+
+Responsibility: on protected paths → verify the cookie JWT → 401 on failure / `next()` on success.
+
+### Configure protected paths
+
+```js
+export const config = {
+  matcher: [
+    '/chat/:path*',
+    '/stop/:path*',
+    '/history/:path*',
+  ],
+};
+```
+
+Notes:
+
+- `matcher` is the **single source of truth** for protected paths
+- Do NOT add `/auth/*` to the matcher
+- Static assets and SPA page routes generally don't need to be in the matcher either
+
+### Main logic
+
+```js
+export async function middleware(context) {
+  const { request, next, env } = context;
+
+  const token = readCookie(request.headers, 'jwt_token');
+  if (!token) return unauthorized('no auth cookie');
+
+  try {
+    await verifyJwt(token, env.JWT_SECRET);
+  } catch (e) {
+    return unauthorized(e.message || 'verify failed');
+  }
+
+  return next();
+}
+```
+
+### Verification checklist
+
+The middleware runs in the edge V8 environment and uses Web Crypto:
+
+```js
+const key = await crypto.subtle.importKey(
+  'raw',
+  utf8ToBytes(secret),
+  { name: 'HMAC', hash: 'SHA-256' },
+  false,
+  ['sign', 'verify'],
+);
+```
+
+Always check:
+
+| Check                              | Purpose                                     |
+| ---------------------------------- | ------------------------------------------- |
+| Token has three segments           | Reject malformed tokens                     |
+| `header.alg === 'HS256'`         | Defeat `alg=none` and algorithm confusion |
+| HMAC signature matches             | Token was not tampered with                 |
+| `payload.exp` is not in the past | Old tokens cannot live forever              |
+
+## Cloud Functions — Key Implementation
+
+Directory: `cloud-functions/`
+
+Responsibility: register / login / current user / logout.
+
+### File layout
+
+| File                       | Purpose                                        |
+| -------------------------- | ---------------------------------------------- |
+| `auth/register/index.ts` | Register a new user, write to Neon, sign a JWT |
+| `auth/login/index.ts`    | Verify the password, sign a JWT                |
+| `auth/user/index.ts`     | Identify the current user from the cookie      |
+| `auth/logout/index.ts`   | Clear the cookie                               |
+
+## Agent — Key Implementation
+
+Example file: `agents/chat/index.ts`
+
+The middleware's value is **early rejection**: anonymous traffic gets blocked at the edge, saving Agent Runtime, sandbox, and LLM cost. The middleware is not your final security boundary, though — re-verify on the Agent side as well:
+
+```ts
+import { requireAuth, AuthError, unauthorizedResponse } from '../_jwt';
+
+export async function onRequest(context: any) {
+  let auth;
+  try {
+    auth = requireAuth(context);
+  } catch (e) {
+    if (e instanceof AuthError) {
+      return unauthorizedResponse(e.reason);
+    }
+    throw e;
+  }
+  // From here on, run the Agent business logic
+}
+```
+
+## Database — Setup & Schema
+
+Neon is Serverless Postgres. This template stores the user table there and accesses it over HTTPS via `@neondatabase/serverless`. You can swap in any other Postgres-compatible database.
+
+### Setup steps
+
+1. Create a project in the [Neon console](https://console.neon.tech/)
+2. Copy the connection string — it looks like:
+
+   ```text
+   postgresql://<user>:<password>@<host>/<db>?sslmode=require
+   ```
+3. Configure `DATABASE_URL` and `JWT_SECRET` in your EdgeOne Makers project's environment variables. For local development, set the same names in `.env`.
+
+### Table schema
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  username      VARCHAR(64)  NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_uniq
+  ON users (LOWER(username));
+```
+
+Notes:
+
+- `id` is generated by Postgres `gen_random_uuid()`
+- `password_hash` stores only the bcrypt hash — never the plain password
+- The `LOWER(username)` unique index prevents `Alice` and `alice` from registering side by side
 
 ## Environment Variables
 
-| Variable                | Required | Description                                                                                                                                                            |
-| ----------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AI_GATEWAY_API_KEY`  | Yes      | Model gateway API key. Use your**Makers Models API Key**, or any OpenAI-compatible provider key.                                                                 |
-| `AI_GATEWAY_BASE_URL` | Yes      | Gateway base URL. For Makers Models, use `https://ai-gateway.edgeone.link/v1`.                                                                                       |
-| `JWT_SECRET`          | Yes      | HMAC-SHA256 secret shared by middleware, cloud-functions, and the Agent runtime — each layer verifies the same JWT independently. Generate ≥ 48 bytes of randomness. |
-| `DATABASE_URL`        | Yes      | Neon Postgres HTTPS connection string (`postgresql://...?sslmode=require`). Used by the auth cloud-functions (login / register / user lookup).                                         |
-
-> This template follows the **OpenAI-compatible** standard — point the `AI_GATEWAY_*` variables at Makers Models or any other compatible gateway / provider.
+| Variable                | Required | Description                                                                                                    |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `AI_GATEWAY_API_KEY`  | Yes      | Model gateway API key. Use your**Makers Models API Key** or any OpenAI-compatible provider key           |
+| `AI_GATEWAY_BASE_URL` | Yes      | Gateway base URL. For Makers Models, use `https://ai-gateway.edgeone.link/v1`                                |
+| `JWT_SECRET`          | Yes      | HMAC-SHA256 secret shared by middleware, cloud-functions, and the Agent runtime — generate ≥ 48 random bytes |
+| `DATABASE_URL`        | Yes      | Neon Postgres HTTPS connection string (`postgresql://...?sslmode=require`)                                   |
 
 ### How to get `AI_GATEWAY_API_KEY`
 
@@ -38,23 +284,6 @@ A production-shaped chat-agent template that demonstrates the **two-layer defens
 4. Copy it into `AI_GATEWAY_API_KEY` (set `AI_GATEWAY_BASE_URL` to `https://ai-gateway.edgeone.link/v1`).
 
 Built-in models (`@makers/deepseek-v4-flash`, `@makers/hy3-preview`, `@makers/minimax-m2.7`) are free and rate-limited — great for prototyping. For production, bind your own provider key (BYOK) in the console.
-
-### How to set up Neon Postgres
-
-1. Sign up at [neon.tech](https://neon.tech) and create a project (pick a region close to your EdgeOne nodes — e.g. AWS Singapore / Tokyo).
-2. From the project Dashboard, copy the **HTTP** connection string (it begins with `postgresql://...` and ends with `?sslmode=require`) into `DATABASE_URL`.
-3. Run the migration in Neon's SQL Editor (the file lives at `db/migrations/users.sql`):
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS pgcrypto;
-   CREATE TABLE IF NOT EXISTS users (
-     id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-     username      VARCHAR(64)  NOT NULL,
-     password_hash VARCHAR(255) NOT NULL,
-     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-   );
-   CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_uniq ON users (LOWER(username));
-   ```
-4. Verify the connection with `node scripts/db-check.mjs`.
 
 ### How to generate `JWT_SECRET`
 
@@ -122,42 +351,21 @@ makers-agent-auth/
 
 > Files prefixed with `_` are private modules — not exposed as public routes by EdgeOne.
 
-## How It Works
+## Integration Steps
 
-The template implements the **"middleware + cloud-functions + Agent self-verify"** authentication scheme. The agent runs in **session mode** under `agents/`: requests sharing the same `Markers-Conversation-Id` header are stickily routed to the same Agent instance and persistent store.
+To bolt this auth scheme onto your own Agent project, follow this order:
 
-### Stage 1 · Sign up / sign in
+1. Create a Neon database and run `db/migrations/users.sql`
+2. Configure `DATABASE_URL` and `JWT_SECRET`
+3. Copy `cloud-functions/auth/*`, `cloud-functions/_jwt.ts`, `cloud-functions/_db.ts`, `cloud-functions/_validate.ts`
+4. Configure `middleware.js`'s `matcher` to cover every protected Agent path
+5. Add `requireAuth(context)` as the first step in every Agent entry
 
-1. Browser POSTs `{ username, password }` to `/auth/login` or `/auth/register`.
-2. `/auth/*` is **not** in `middleware.js`'s matcher, so the platform routes the request directly to the cloud-function — no JWT required at this stage.
-3. `cloud-functions/auth/{login,register}/index.ts` (Node 20) reads / writes the `users` table via `@neondatabase/serverless` — tag-template SQL parameterises automatically (no SQL injection).
-4. The password is verified or hashed with **bcryptjs** (cost 10).
-5. **node:crypto** signs an HS256 JWT using `JWT_SECRET` (3-day TTL).
-6. The function returns `200 OK` with `Set-Cookie: jwt_token=…; HttpOnly; Secure; SameSite=Lax`.
+## Resources
 
-### Stage 2 · Agent call (with cookie)
-
-1. Browser POSTs `/chat` with `Cookie: jwt_token=…` and the `Markers-Conversation-Id: <uuid>` header.
-2. `middleware.js`'s matcher (`/chat`, `/stop`, `/history`) verifies the JWT with **Web Crypto** HS256. On failure it short-circuits with `401`. On success it `next()`s the request through, **without writing any header** — the agent must verify on its own.
-3. `agents/chat/index.ts` calls `requireAuth(context)`, which uses **node:crypto** HMAC and the same `JWT_SECRET` to verify the cookie independently. **This is the dual-defense rule**: even if the edge is bypassed, the agent still 401s.
-4. The agent emits an `auth_ok` SSE event as the first frame so the second-layer verification is observable (visible in the in-browser DebugPanel and via `curl -N`).
-5. The agent injects the JWT-verified `username` / `sub` into the model instructions and runs the OpenAI Agents SDK tool loop, streaming `text_delta` events back over SSE.
-
-### Routes
-
-| Method | Path               | Handler                           | Auth     |
-| ------ | ------------------ | --------------------------------- | -------- |
-| POST   | `/auth/register` | `cloud-functions/auth/register` | public   |
-| POST   | `/auth/login`    | `cloud-functions/auth/login`    | public   |
-| GET    | `/auth/user`     | `cloud-functions/auth/user`     | required |
-| POST   | `/auth/logout`   | `cloud-functions/auth/logout`   | public   |
-| POST   | `/chat`          | `agents/chat`                   | required |
-| POST   | `/stop`          | `agents/stop`                   | required |
-| POST   | `/history`       | `cloud-functions/history`       | required |
-
-### Runtime parameters
-
-`edgeone.json` controls the Agent timeout (`agents.timeout`) and sandbox lifetime (`agents.sandbox.timeout`); both accept values from 300 to 3600 seconds inclusive.
+- [EdgeOne Makers Agents Documentation](https://edgeone.ai/document/agents)
+- [EdgeOne Makers Quick Start](https://edgeone.ai/document/agents-quickstart)
+- [Makers Models](https://edgeone.ai/document/models)
 
 ## License
 
