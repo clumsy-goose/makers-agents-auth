@@ -15,7 +15,7 @@ Agent 应用通常会调用模型、工具，如果没有登录鉴权，任何�
 - **资源被滥用**：未登录用户也能消耗 LLM 和工具调用额度；
 - **接口容易被绕过调用**：攻击者可以跳过前端页面，直接请求 `/chat`、`/stop` 等接口。
 
-本文档以[实际项目](https://github.com/clumsy-goose/makers-agent-auth/tree/main)为例，说明如何基于 Makers 平台能力搭建登录鉴权流程：由 Cloud Functions 负责登录注册和 JWT 签发，由平台中间件在边缘节点提前拦截未登录请求。
+本文档说明如何基于 Makers 平台能力搭建登录鉴权流程：由 Cloud Functions 负责登录注册和 JWT 签发，由平台中间件在边缘节点提前拦截未登录请求。
 
 ## 项目主要文件与职责
 
@@ -363,9 +363,9 @@ makers-agent-auth/
 
 ## 资源
 
-- [EdgeOne Makers Agents 文档](https://edgeone.ai/document/agents)
-- [EdgeOne Makers 快速开始](https://edgeone.ai/document/agents-quickstart)
-- [Makers Models](https://edgeone.ai/document/models)
+* [EdgeOne Makers Agents 文档](https://pages.edgeone.ai/document/agents)
+* [EdgeOne Makers 快速开始](https://pages.edgeone.ai/document/agents-quickstart)
+* [Makers Models](https://pages.edgeone.ai/document/models)
 
 ## License
 

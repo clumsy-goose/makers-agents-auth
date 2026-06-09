@@ -15,7 +15,7 @@ Agent applications typically call models and tools. Without login authentication
 - **Resource abuse** — anonymous traffic burns through your LLM and tool-call quota.
 - **Endpoint bypass** — attackers skip the frontend page and call `/chat`, `/stop` and other endpoints directly.
 
-Using this [reference project](https://github.com/clumsy-goose/makers-agent-auth/tree/main) as a working example, this doc shows how to build a login-auth flow on the Makers platform: Cloud Functions handle login / register and JWT signing, while the platform middleware rejects unauthenticated requests at the edge. The Agent runtime then re-verifies the same JWT independently — so even if someone bypasses the edge, the Agent still 401s.
+This doc shows how to build a login-auth flow on the Makers platform: Cloud Functions handle login / register and JWT signing, while the platform middleware rejects unauthenticated requests at the edge.
 
 ## Project Files & Responsibilities
 
@@ -363,9 +363,9 @@ To bolt this auth scheme onto your own Agent project, follow this order:
 
 ## Resources
 
-- [EdgeOne Makers Agents Documentation](https://edgeone.ai/document/agents)
-- [EdgeOne Makers Quick Start](https://edgeone.ai/document/agents-quickstart)
-- [Makers Models](https://edgeone.ai/document/models)
+* [EdgeOne Makers Agents — Documentation](https://pages.edgeone.ai/document/agents)
+* [EdgeOne Makers — Quick Start](https://pages.edgeone.ai/document/agents-quickstart)
+* [Makers Models](https://pages.edgeone.ai/document/models)
 
 ## License
 
