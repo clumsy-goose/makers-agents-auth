@@ -16,8 +16,8 @@ const Va  = token(styles.va);
 interface LineProps { n: number; children?: React.ReactNode }
 const L = ({ n, children }: LineProps) => (
   <div className={styles.line}>
-    <span className={styles.ln}>{String(n).padStart(2, ' ')}</span>
-    <span className={styles.lc}>{children ?? ' '}</span>
+    <span className={styles.ln}>{String(n).padStart(2, ' ')}</span>
+    <span className={styles.lc}>{children ?? ' '}</span>
   </div>
 );
 
@@ -32,7 +32,7 @@ export default function CodeViewer() {
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <span className={styles.fileIcon}>⬡</span>
-          <span className={styles.filename}>index.ts<span className={styles.sep}></span></span>
+          <span className={styles.filename}>middleware.js<span className={styles.sep}></span></span>
         </div>
         <span className={styles.badge}>READ ONLY</span>
       </div>
@@ -43,210 +43,203 @@ export default function CodeViewer() {
         <div className={styles.scanline} aria-hidden />
 
         <div className={styles.code}>
-          {/* ── Imports ── */}
+          {/* ── Header comment ── */}
           <L n={1}>
-            <Kw t="import " /><Op t="{ " /><Ty t="Agent" /><Op t=", " /><Fn t="run" /><Op t=", " /><Fn t="tool" /><Op t=" } " />
-            <Kw t="from " /><Str t="'@openai/agents'" /><Op t=";" />
+            <Cmt t="// EdgeOne Pages Middleware — JWT early-reject at the edge" />
           </L>
-          <L n={2}>
-            <Kw t="import " /><Op t="{ " /><Va t="z" /><Op t=" } " />
-            <Kw t="from " /><Str t="'zod'" /><Op t=";" />
-          </L>
+          <L n={2} />
+
+          {/* ── Constants ── */}
           <L n={3}>
-            <Kw t="import " /><Va t="OpenAI" />
-            <Kw t=" from " /><Str t="'openai'" /><Op t=";" />
+            <Kw t="const " /><Va t="COOKIE_NAME" /><Op t=" = " /><Str t="'jwt_token'" /><Op t=";" />
           </L>
-          <L n={4} />
-
-          {/* ── Instructions constant ── */}
-          <L n={5}>
-            <Kw t="const " /><Va t="INSTRUCTIONS" /><Op t=" = " /><Str t="`...`" /><Op t=";" />
+          <L n={4}>
+            <Kw t="const " /><Va t="ALG" /><Op t=" = " /><Str t="'HS256'" /><Op t=";" />
           </L>
-          <L n={6} />
+          <L n={5} />
 
-          {/* ── onRequest handler ── */}
+          {/* ── Matcher: protected paths ── */}
+          <L n={6}>
+            <Cmt t="// matcher = single source of truth for protected paths" />
+          </L>
           <L n={7}>
-            <Kw t="export " /><Kw t="async " /><Kw t="function " /><Fn t="onRequest" />
-            <Op t="(" /><Va t="context" /><Op t=": " /><Ty t="any" /><Op t=") {" />
+            <Kw t="export " /><Kw t="const " /><Va t="config" /><Op t=" = {" />
           </L>
           <L n={8}>
-            <I /><Kw t="const " /><Va t="message" /><Op t=" = " />
-            <Va t="context" /><Op t="." /><Va t="request" /><Op t="." /><Va t="body" />
-            <Op t="?." /><Va t="message" /><Op t=" ?? " /><Str t="''" /><Op t=";" />
+            <I /><Va t="matcher" /><Op t=": [" />
           </L>
           <L n={9}>
-            <I /><Kw t="const " /><Va t="conversationId" /><Op t=" = " />
-            <Va t="context" /><Op t="." /><Va t="conversation_id" /><Op t=";" />
+            <I2 /><Str t="'/chat/:path*'" /><Op t="," />
           </L>
           <L n={10}>
-            <I /><Kw t="const " /><Va t="store" /><Op t=" = " />
-            <Va t="context" /><Op t="." /><Va t="store" /><Op t=";" />
+            <I2 /><Str t="'/stop/:path*'" /><Op t="," />
           </L>
-          <L n={11} />
-
-          {/* ── Step 1: Store user message ── */}
+          <L n={11}>
+            <I2 /><Str t="'/history/:path*'" /><Op t="," />
+          </L>
           <L n={12}>
-            <I /><Cmt t="// 1. EdgeOne Store: save user message for history restore" />
+            <I /><Op t="]," />
           </L>
           <L n={13}>
-            <I /><Kw t="await " /><Va t="store" /><Op t="?." /><Fn t="appendMessage" /><Op t="?.({" />
+            <Op t="};" />
           </L>
-          <L n={14}>
-            <I2 /><Va t="conversationId" /><Op t="," />
-          </L>
+          <L n={14} />
+
+          {/* ── Main entry ── */}
           <L n={15}>
-            <I2 /><Va t="role" /><Op t=": " /><Str t="'user'" /><Op t="," />
+            <Cmt t="// Only protected paths reach this function" />
           </L>
           <L n={16}>
-            <I2 /><Va t="content" /><Op t=": " /><Va t="message" /><Op t="," />
+            <Kw t="export " /><Kw t="async " /><Kw t="function " /><Fn t="middleware" />
+            <Op t="(" /><Va t="context" /><Op t=") {" />
           </L>
           <L n={17}>
-            <I /><Op t="});" />
+            <I /><Kw t="const " /><Op t="{ " /><Va t="request" /><Op t=", " />
+            <Va t="next" /><Op t=", " /><Va t="env" /><Op t=" } = " /><Va t="context" /><Op t=";" />
           </L>
           <L n={18} />
-
-          {/* ── Step 2: Inject session memory ── */}
           <L n={19}>
-            <I /><Cmt t="// 2. EdgeOne Store: inject OpenAI Agents SDK session memory" />
+            <I /><Cmt t="// 1. Read JWT from HttpOnly cookie" />
           </L>
           <L n={20}>
-            <I /><Kw t="const " /><Va t="session" /><Op t=" = " />
-            <Va t="store" /><Op t="?." /><Fn t="openaiSession" /><Op t="?.(" /><Va t="conversationId" /><Op t=");" />
+            <I /><Kw t="const " /><Va t="token" /><Op t=" = " />
+            <Fn t="readCookie" /><Op t="(" /><Va t="request" /><Op t="." />
+            <Va t="headers" /><Op t=", " /><Va t="COOKIE_NAME" /><Op t=");" />
           </L>
-          <L n={21} />
-
-          {/* ── Step 3: Define tools ── */}
-          <L n={22}>
-            <I /><Cmt t="// 3. Use Agent tools defined in this project" />
+          <L n={21}>
+            <I /><Kw t="if " /><Op t="(!" /><Va t="token" /><Op t=") " />
+            <Kw t="return " /><Fn t="unauthorized" /><Op t="(" /><Str t="'no auth cookie'" /><Op t=");" />
           </L>
+          <L n={22} />
           <L n={23}>
-            <I /><Kw t="const " /><Va t="getWeather" /><Op t=" = " /><Fn t="tool" /><Op t="({" />
+            <I /><Cmt t="// 2. Verify with Web Crypto (HS256)" />
           </L>
           <L n={24}>
-            <I2 /><Va t="name" /><Op t=": " /><Str t="'get_weather'" /><Op t="," />
+            <I /><Kw t="try " /><Op t="{" />
           </L>
           <L n={25}>
-            <I2 /><Va t="description" /><Op t=": " /><Str t="'Get the current weather...'" /><Op t="," />
+            <I2 /><Kw t="await " /><Fn t="verifyJwt" /><Op t="(" />
+            <Va t="token" /><Op t=", " /><Va t="env" /><Op t="." /><Va t="JWT_SECRET" /><Op t=");" />
           </L>
           <L n={26}>
-            <I2 /><Va t="parameters" /><Op t=": " /><Va t="z" /><Op t="." /><Fn t="object" /><Op t="({" />
+            <I /><Op t="} " /><Kw t="catch " /><Op t="(" /><Va t="e" /><Op t=") {" />
           </L>
           <L n={27}>
-            <I2 /><I /><Va t="city" /><Op t=": " /><Va t="z" /><Op t="." /><Fn t="string" /><Op t="()." />
-            <Fn t="describe" /><Op t="(" /><Str t="'city'" /><Op t=")," />
+            <I2 /><Kw t="return " /><Fn t="unauthorized" /><Op t="(" />
+            <Va t="e" /><Op t="." /><Va t="message" /><Op t=" || " /><Str t="'verify failed'" /><Op t=");" />
           </L>
           <L n={28}>
-            <I2 /><Op t="})," />
+            <I /><Op t="}" />
           </L>
-          <L n={29}>
-            <I2 /><Va t="execute" /><Op t=": " /><Kw t="async " /><Op t="({ " /><Va t="city" /><Op t=" }) => { ... }," />
-          </L>
+          <L n={29} />
           <L n={30}>
-            <I /><Op t="});" />
+            <I /><Cmt t="// 3. Pass through — Agent / cf must verify independently" />
           </L>
-          <L n={31} />
-          <L n={32}>
-            <I /><Kw t="const " /><Va t="tools" /><Op t=" = [" />
+          <L n={31}>
+            <I /><Kw t="return " /><Fn t="next" /><Op t="();" />
           </L>
-          <L n={33}>
-            <I2 /><Va t="getWeather" /><Op t="," />
-          </L>
+          <L n={32}><Op t="}" /></L>
+          <L n={33} />
+
+          {/* ── verifyJwt ── */}
           <L n={34}>
-            <I2 /><Cmt t="// More tools..." />
+            <Cmt t="// ── HS256 JWT verification (Web Crypto) ──" />
           </L>
           <L n={35}>
-            <I /><Op t="];" />
+            <Kw t="async " /><Kw t="function " /><Fn t="verifyJwt" />
+            <Op t="(" /><Va t="token" /><Op t=", " /><Va t="secret" /><Op t=") {" />
           </L>
-          <L n={36} />
-
-          {/* ── Step 4: Create Agent ── */}
-          <L n={37}>
-            <I /><Cmt t="// 4. Create OpenAI Agent" />
+          <L n={36}>
+            <I /><Kw t="const " /><Op t="[" /><Va t="headerB64" /><Op t=", " />
+            <Va t="payloadB64" /><Op t=", " /><Va t="sigB64" /><Op t="] = " />
+            <Va t="token" /><Op t="." /><Fn t="split" /><Op t="(" /><Str t="'.'" /><Op t=");" />
           </L>
+          <L n={37} />
           <L n={38}>
-            <I /><Kw t="const " /><Va t="agent" /><Op t=" = " /><Kw t="new " /><Ty t="Agent" /><Op t="({" />
+            <I /><Cmt t="// Defend against alg=none" />
           </L>
           <L n={39}>
-            <I2 /><Va t="name" /><Op t=": " /><Str t="'EdgeOne Assistant'" /><Op t="," />
+            <I /><Kw t="const " /><Va t="header" /><Op t=" = " />
+            <Ty t="JSON" /><Op t="." /><Fn t="parse" /><Op t="(" />
+            <Fn t="bytesToUtf8" /><Op t="(" /><Fn t="b64urlToBytes" /><Op t="(" />
+            <Va t="headerB64" /><Op t=")));" />
           </L>
           <L n={40}>
-            <I2 /><Va t="instructions" /><Op t=": " /><Va t="INSTRUCTIONS" /><Op t="," />
+            <I /><Kw t="if " /><Op t="(" /><Va t="header" /><Op t="." /><Va t="alg" />
+            <Op t=" !== " /><Va t="ALG" /><Op t=") " />
+            <Kw t="throw " /><Kw t="new " /><Ty t="Error" /><Op t="(" />
+            <Str t="'unsupported alg'" /><Op t=");" />
           </L>
-          <L n={41}>
-            <I2 /><Va t="model" /><Op t=": " /><Kw t="new " /><Fn t="OpenAIChatCompletionsModel" /><Op t="(" /><Va t="llmClient" /><Op t=", " /><Va t="modelName" /><Op t=")," />
-          </L>
+          <L n={41} />
           <L n={42}>
-            <I2 /><Va t="tools" /><Op t="," />
+            <I /><Cmt t="// HMAC-SHA256 signature check" />
           </L>
           <L n={43}>
-            <I /><Op t="});" />
+            <I /><Kw t="const " /><Va t="key" /><Op t=" = " /><Kw t="await " />
+            <Va t="crypto" /><Op t="." /><Va t="subtle" /><Op t="." /><Fn t="importKey" /><Op t="(" />
           </L>
-          <L n={44} />
-
-          {/* ── Step 5: Run Agent ── */}
+          <L n={44}>
+            <I2 /><Str t="'raw'" /><Op t=", " /><Fn t="utf8ToBytes" /><Op t="(" />
+            <Va t="secret" /><Op t=")," />
+          </L>
           <L n={45}>
-            <I /><Cmt t="// 5. Launch Agent with Store Session injected" />
+            <I2 /><Op t="{ " /><Va t="name" /><Op t=": " /><Str t="'HMAC'" />
+            <Op t=", " /><Va t="hash" /><Op t=": " /><Str t="'SHA-256'" /><Op t=" }," />
           </L>
           <L n={46}>
-            <I /><Kw t="const " /><Va t="result" /><Op t=" = " /><Kw t="await " /><Fn t="run" /><Op t="(" />
-            <Va t="agent" /><Op t=", " /><Va t="message" /><Op t=", {" />
+            <I2 /><Va t="false" /><Op t=", [" /><Str t="'sign'" /><Op t=", " />
+            <Str t="'verify'" /><Op t="]," />
           </L>
           <L n={47}>
-            <I2 /><Va t="session" /><Op t="," />
+            <I /><Op t=");" />
           </L>
           <L n={48}>
-            <I2 /><Va t="stream" /><Op t=": " /><Va t="true" /><Op t="," />
+            <I /><Kw t="const " /><Va t="expected" /><Op t=" = " /><Kw t="new " />
+            <Ty t="Uint8Array" /><Op t="(" />
           </L>
           <L n={49}>
-            <I2 /><Va t="signal" /><Op t=": " /><Va t="context" /><Op t="." /><Va t="request" /><Op t="." /><Va t="signal" /><Op t="," />
+            <I2 /><Kw t="await " /><Va t="crypto" /><Op t="." /><Va t="subtle" />
+            <Op t="." /><Fn t="sign" /><Op t="(" /><Str t="'HMAC'" /><Op t=", " />
+            <Va t="key" /><Op t=", ...)," />
           </L>
           <L n={50}>
-            <I /><Op t="});" />
+            <I /><Op t=");" />
           </L>
-          <L n={51} />
-
-          {/* ── Collect assistant text ── */}
+          <L n={51}>
+            <I /><Kw t="if " /><Op t="(!" /><Fn t="timingSafeEqual" />
+            <Op t="(" /><Va t="expected" /><Op t=", " /><Va t="actual" /><Op t=")) " />
+          </L>
           <L n={52}>
-            <I /><Cmt t="// SSE / text_delta / tool_called streaming details omitted" />
+            <I2 /><Kw t="throw " /><Kw t="new " /><Ty t="Error" />
+            <Op t="(" /><Str t="'signature mismatch'" /><Op t=");" />
           </L>
-          <L n={53}>
-            <I /><Kw t="const " /><Va t="assistantText" /><Op t=" = " /><Kw t="await " />
-            <Fn t="collectAssistantText" /><Op t="(" /><Va t="result" /><Op t=");" />
+          <L n={53} />
+          <L n={54}>
+            <I /><Cmt t="// Expiry check" />
           </L>
-          <L n={54} />
-
-          {/* ── Step 6: Store assistant message ── */}
           <L n={55}>
-            <I /><Cmt t="// 6. EdgeOne Store: save assistant reply for /history restore" />
+            <I /><Kw t="const " /><Va t="payload" /><Op t=" = " /><Ty t="JSON" />
+            <Op t="." /><Fn t="parse" /><Op t="(...);" />
           </L>
           <L n={56}>
-            <I /><Kw t="await " /><Va t="store" /><Op t="?." /><Fn t="appendMessage" /><Op t="?.({" />
+            <I /><Kw t="if " /><Op t="(" /><Va t="payload" /><Op t="." /><Va t="exp" />
+            <Op t=" < " /><Ty t="Date" /><Op t="." /><Fn t="now" /><Op t="() / " />
+            <Va t="1000" /><Op t=") " />
+            <Kw t="throw " /><Kw t="new " /><Ty t="Error" /><Op t="(" />
+            <Str t="'expired'" /><Op t=");" />
           </L>
-          <L n={57}>
-            <I2 /><Va t="conversationId" /><Op t="," />
-          </L>
+          <L n={57} />
           <L n={58}>
-            <I2 /><Va t="role" /><Op t=": " /><Str t="'assistant'" /><Op t="," />
+            <I /><Kw t="return " /><Va t="payload" /><Op t=";" />
           </L>
-          <L n={59}>
-            <I2 /><Va t="content" /><Op t=": " /><Va t="assistantText" /><Op t="," />
-          </L>
-          <L n={60}>
-            <I /><Op t="});" />
-          </L>
-          <L n={61} />
-          <L n={62}>
-            <I /><Kw t="return " /><Ty t="Response" /><Op t="." /><Fn t="json" />
-            <Op t="({ " /><Va t="answer" /><Op t=": " /><Va t="assistantText" /><Op t=" });" />
-          </L>
-          <L n={63}><Op t="}" /></L>
+          <L n={59}><Op t="}" /></L>
         </div>
       </div>
 
       {/* ── Footer tag ── */}
       <div className={styles.footer}>
         <span className={styles.footerDot} />
-        <span>OpenAI Agents SDK · EdgeOne Functions</span>
+        <span>EdgeOne Pages Middleware · Edge V8 Runtime</span>
       </div>
     </div>
   );
