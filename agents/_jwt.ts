@@ -1,13 +1,5 @@
 /**
- * JWT (HS256) — Agent Runtime 版
- * ================================
- * 与 cloud-functions/_jwt.ts 字节级一致 — Agent 必须**独立**完成验签,
- * 不依赖任何 mw / cf 写下来的 header,这是双层防御铁律
- * (防止跳过 mw 直连 Agent 路径绕过鉴权)。
- *
- * 注意:Agent Runtime 中 context.request.headers 是 `Record<string, string>`
- * 纯对象(由 runtime 归一化为小写 key),与 cf 的 Headers 实例不同。
- * readCookie() 已兼容两种形态。
+ * JWT (HS256) — Agent Runtime
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -37,8 +29,8 @@ function hmac(secret: string, data: string): Buffer {
 }
 
 /**
- * JWT 过期秒数 — 与 cloud-functions/_jwt.ts 保持一致(3 天)。
- * Agent 这一层不签发 token,但保留导出常量以便复用。
+ * JWT TTL — kept in sync with cloud-functions/_jwt.ts (3 days).
+ * The agent layer doesn't sign tokens, but the constant is exported for parity.
  */
 export const JWT_TTL_SECONDS = 3 * 24 * 60 * 60;
 
@@ -114,11 +106,11 @@ export function readCookie(
   return null;
 }
 
-// ── 高阶辅助:从 Agent / cf context 一次性取出已验证身份 ─────────
+// ── High-level helpers — exposes verified identity from a context object ──
 
 const COOKIE_NAME = 'jwt_token';
 
-/** 校验失败抛 AuthError;调用方 catch 后返回 401 Response。 */
+/** Thrown by requireAuth on any verification failure. */
 export class AuthError extends Error {
   constructor(public readonly reason: string) {
     super(reason);
@@ -127,13 +119,12 @@ export class AuthError extends Error {
 }
 
 /**
- * 从 context 中提取并校验 JWT,返回 payload。
+ * Extract & verify the JWT from `context`. Throws AuthError on failure;
+ * the caller decides how to respond.
  *
- * 期望 context 形态:
- *   - context.request.headers (Headers | Record)
+ * Expected context shape:
+ *   - context.request.headers   (Headers | Record)
  *   - context.env.JWT_SECRET
- *
- * 失败抛 AuthError;由调用方决定如何响应。
  */
 export function requireAuth(context: {
   request: { headers: Headers | Record<string, string | undefined> };
@@ -152,7 +143,7 @@ export function requireAuth(context: {
   }
 }
 
-/** 401 标准响应 — 给所有需要早拒的入口复用。 */
+/** Standard 401 response — reused by every early-reject entry. */
 export function unauthorizedResponse(reason = 'unauthorized'): Response {
   return new Response(JSON.stringify({ error: 'unauthorized', reason }), {
     status: 401,

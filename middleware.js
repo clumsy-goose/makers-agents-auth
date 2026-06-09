@@ -2,28 +2,31 @@
  * EdgeOne Pages Middleware
  * ==========================
  *
- * 方案一 · 边缘节点早拒鉴权层(Edge V8 Runtime)。
+ * Edge V8 runtime — early-reject auth layer.
  *
- * 职责:
- *   - matcher 是受保护路径的**唯一真理来源**:命中即验签,未命中根本不进入本文件
- *   - 受保护路径(/chat, /stop, /history, /agents/*, /admin/*):
- *       - Web Crypto HS256 验签 Cookie jwt_token
- *       - 失败 → 401 立即拒绝
- *       - 成功 → next() 透传(不写任何 header,Agent / cf 自己再独立验签)
- *   - /auth/*、静态资源、前端路由不在 matcher 中,平台路由直接派发,不经此函数
+ * Responsibilities:
+ *   - The matcher is the single source of truth for protected paths:
+ *     a request reaches this file only if it matched.
+ *   - Protected paths (/chat, /stop, /history):
+ *       - Verify HS256 JWT in cookie `jwt_token` via Web Crypto
+ *       - On failure: 401
+ *       - On success: next() — without writing any header.
+ *         Agent / cf must verify the JWT independently.
+ *   - /auth/*, static assets and frontend routes are NOT in the matcher
+ *     and are dispatched directly by the platform.
  *
- * 重要约束:
- *   - 仅 Web Crypto API (globalThis.crypto.subtle),禁用 node:crypto / process.*
- *   - 经平台 esbuild 编译注入 next/redirect/rewrite,通过 context.env 取 secret
+ * Constraints:
+ *   - Web Crypto API only (globalThis.crypto.subtle); no node:crypto / process.*
+ *   - The platform's esbuild step injects next/redirect/rewrite; secrets come
+ *     from context.env.
  *
- * 本文件由 EdgeOne CLI 自动加载,无需在 edgeone.json 中显式注册。
+ * EdgeOne CLI auto-loads this file; no edgeone.json registration needed.
  */
 
 const COOKIE_NAME = 'jwt_token';
 const ALG = 'HS256';
 
-// ── base64url helpers ─────────────────────────────────────
-// btoa/atob 在 Edge 环境可用,用其拼出 base64url 编解码
+// base64url helpers — atob/btoa are available in the Edge runtime.
 
 /** @param {string} str base64url */
 function b64urlToBytes(str) {
@@ -44,7 +47,7 @@ function bytesToUtf8(bytes) {
 }
 
 /**
- * 常量时间比较两个 Uint8Array,防时序攻击
+ * Constant-time comparison — guards against timing attacks.
  * @param {Uint8Array} a
  * @param {Uint8Array} b
  */
@@ -56,13 +59,13 @@ function timingSafeEqual(a, b) {
 }
 
 /**
- * 用 Web Crypto 验证 HS256 JWT。
- * 与 cloud-functions/_jwt.ts 的 verifyJwt 字节级一致。
+ * Verify an HS256 JWT with Web Crypto.
+ * Byte-for-byte compatible with cloud-functions/_jwt.ts verifyJwt.
  *
- * @param {string} token  待验证 token
- * @param {string} secret 共享密钥
+ * @param {string} token
+ * @param {string} secret
  * @returns {Promise<{ sub: string, username: string, iat: number, exp: number }>}
- * @throws 任何环节失败均抛错
+ * @throws on any failure
  */
 async function verifyJwt(token, secret) {
   if (!secret) throw new Error('JWT_SECRET missing');
@@ -72,7 +75,7 @@ async function verifyJwt(token, secret) {
   if (parts.length !== 3) throw new Error('malformed token');
   const [headerB64, payloadB64, sigB64] = parts;
 
-  // 1) Header alg 检查(防 alg=none)
+  // 1) Header alg check (defends against alg=none).
   let header;
   try {
     header = JSON.parse(bytesToUtf8(b64urlToBytes(headerB64)));
@@ -81,7 +84,7 @@ async function verifyJwt(token, secret) {
   }
   if (header.alg !== ALG) throw new Error('unsupported alg');
 
-  // 2) HMAC-SHA256 验签
+  // 2) HMAC-SHA256 signature check.
   const key = await crypto.subtle.importKey(
     'raw',
     utf8ToBytes(secret),
@@ -95,7 +98,7 @@ async function verifyJwt(token, secret) {
   const actual = b64urlToBytes(sigB64);
   if (!timingSafeEqual(expected, actual)) throw new Error('signature mismatch');
 
-  // 3) 过期校验
+  // 3) Expiry check.
   let payload;
   try {
     payload = JSON.parse(bytesToUtf8(b64urlToBytes(payloadB64)));
@@ -107,8 +110,6 @@ async function verifyJwt(token, secret) {
 
   return payload;
 }
-
-// ── Cookie 解析 ───────────────────────────────────────────
 
 function readCookie(headers, key) {
   const raw = headers.get('cookie');
@@ -129,9 +130,7 @@ function unauthorized(reason) {
   );
 }
 
-// ── 主函数 ───────────────────────────────────────────────
-// 进入此函数的请求 = 命中 matcher = 受保护路径,直接验签即可。
-
+// Any request reaching this function has matched a protected path — verify JWT.
 export async function middleware(context) {
   const { request, next, env } = context;
   const token = readCookie(request.headers, COOKIE_NAME);
@@ -144,15 +143,10 @@ export async function middleware(context) {
   return next();
 }
 
-// ── 路由匹配配置 ─────────────────────────────────────────
-// matcher 即受保护路径白名单 — 唯一真理来源。
-// 未命中的路径(/auth/*、静态资源、前端路由)由平台路由直接派发,不经本文件。
 export const config = {
   matcher: [
     '/chat/:path*',
     '/stop/:path*',
     '/history/:path*',
-    '/agents/:path*',
-    '/admin/:path*',
   ],
 };

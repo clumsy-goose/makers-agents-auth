@@ -1,11 +1,12 @@
 /**
- * POST /auth/login — 用户登录
+ * POST /auth/login — sign in
  * =============================
  *
  * Runtime: Node 20 (cloud-functions/nodejs)
  *
- * 方案一对应链路第 ④⑤⑥⑦ 步。
- * 登录失败统一返回 401 + 模糊原因(invalid_credentials),不暴露用户是否存在。
+ * Failure modes are blurred together: every wrong-username / wrong-password
+ * outcome returns the same 401 `invalid_credentials`, never reveals whether
+ * the username exists.
  */
 
 import bcrypt from 'bcryptjs';
@@ -36,11 +37,12 @@ export async function onRequestPost(context: any): Promise<Response> {
     return jsonResponse({ error: 'bad_request', reason: 'invalid json' }, 400);
   }
 
-  // 输入校验放宽 — 只确保是字符串(避免直接抛 SQL)
+  // Type guard — keep this so SQL never sees a non-string.
   if (typeof body?.username !== 'string' || typeof body?.password !== 'string') {
     return jsonResponse({ error: 'bad_request', reason: 'username and password required' }, 400);
   }
-  // 进一步格式校验 — 失败也只返回 invalid_credentials,不暴露原因
+  // Format check — failure also returns invalid_credentials so attackers
+  // cannot tell "format invalid" apart from "wrong credentials".
   const u = validateUsername(body.username);
   const p = validatePassword(body.password);
   if (!u.ok || !p.ok) {
@@ -49,7 +51,6 @@ export async function onRequestPost(context: any): Promise<Response> {
 
   const { username, password } = body;
 
-  // 查询用户
   let user;
   try {
     user = await findUserByUsername(env, username);
@@ -57,7 +58,9 @@ export async function onRequestPost(context: any): Promise<Response> {
     return jsonResponse({ error: 'db_error', reason: (e as Error).message }, 500);
   }
 
-  // 即使不存在也跑一次 bcrypt(防时序攻击,让响应时间稳定)
+  // Run bcrypt even when the user doesn't exist — keeps the response time
+  // identical to the "wrong password" path, so attackers can't enumerate
+  // usernames via timing.
   const fakeHash = '$2a$10$abcdefghijklmnopqrstuv1234567890123456789012345678901';
   const hash = user?.password_hash ?? fakeHash;
   const ok = await bcrypt.compare(password, hash);
@@ -65,7 +68,6 @@ export async function onRequestPost(context: any): Promise<Response> {
     return jsonResponse({ error: 'invalid_credentials' }, 401);
   }
 
-  // 签发 JWT
   const token = signJwt({ sub: user.id, username: user.username }, secret);
   const cookie = serializeCookie('jwt_token', token, {
     httpOnly: true,

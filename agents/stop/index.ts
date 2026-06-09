@@ -21,7 +21,7 @@ import { requireAuth, AuthError, unauthorizedResponse } from '../_jwt';
 const logger = createLogger('stop');
 
 export async function onRequest(context: any) {
-  // 双层防御:与 /chat 一样,Agent 入口必须独立验签
+  // Defense in depth: like /chat, this entry must verify the JWT itself.
   try {
     requireAuth(context);
   } catch (e) {

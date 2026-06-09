@@ -1,15 +1,5 @@
 /**
- * UserPill — 头部右侧用户徽章 + 账户菜单
- *
- * 折叠状态:[ A | alice ●]
- * 展开状态:折叠 + 下拉面板,显示
- *   - 用户名 / sub
- *   - JWT 算法 + Cookie 类型
- *   - exp 过期时间
- *   - 退出登录按钮
- *
- * 注:这里展示的 sub / exp 是从 /auth/user 二次拉取得到(JWT 是 HttpOnly Cookie,
- * JS 拿不到 token 本身,但 /auth/user 会回包含 user + exp)。
+ * UserPill — header user badge + account menu (top-right).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -33,7 +23,7 @@ export default function UserPill({ user, onSignOut }: UserPillProps) {
   const [meta, setMeta] = useState<MeMeta>({ sub: user.id });
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // 展开时拉一次 /auth/user 同步 exp(JWT 在 HttpOnly Cookie 里,JS 解不到)
+  // Refresh exp on open (JWT is in an HttpOnly cookie, JS cannot decode it directly).
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -44,13 +34,13 @@ export default function UserPill({ user, onSignOut }: UserPillProps) {
         const data = await res.json() as { user: AuthUser; exp?: number };
         if (!cancelled) setMeta({ sub: data.user.id, exp: data.exp });
       } catch {
-        /* noop — 默认显示已有的 user.id,exp 显示 — */
+        /* noop — fall back to the cached user.id, exp shows as — */
       }
     })();
     return () => { cancelled = true; };
   }, [open]);
 
-  // ESC / 点外部关闭
+  // ESC closes the dropdown.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

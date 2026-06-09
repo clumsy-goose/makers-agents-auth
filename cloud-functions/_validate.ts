@@ -1,11 +1,12 @@
 /**
- * 用户名 / 密码格式校验 — login 与 register 复用。
+ * Username / password format checks — shared by login & register.
  *
- * 规则(MVP,可按需放宽):
- *   - username: 3-10 字符,字母/数字/下划线/连字符
- *   - password: 8-16 字符
+ * Rules (MVP, easy to relax):
+ *   - username: 3-10 chars, [A-Za-z0-9_-]
+ *   - password: 8-16 chars
  *
- * 注:bcrypt 输入硬上限 72 字节,我们的 16 上限远低于此,无截断风险。
+ * Note: bcrypt has a hard input ceiling of 72 bytes — our 16 cap is well
+ * below it, so there's no truncation risk.
  */
 
 const USERNAME_RE = /^[A-Za-z0-9_-]{3,10}$/;

@@ -1,7 +1,9 @@
 /**
- * POST /auth/logout — 清除 Cookie
+ * POST /auth/logout — clear cookie
  *
- * 不要求验签:即便 token 已过期/伪造,我们也乐于覆盖一份 Max-Age=0 的空 Cookie。
+ * No JWT required: even with an expired or forged token we are happy to
+ * overwrite the cookie with Max-Age=0 (otherwise an expired token would
+ * lock the user out of logging out, which is silly).
  */
 
 import { serializeCookie } from '../../_jwt';

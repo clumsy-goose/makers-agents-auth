@@ -1,17 +1,20 @@
 /**
- * Neon Postgres 客户端封装(HTTPS 模式)
+ * Neon Postgres client (HTTPS mode)
  * ======================================
  *
- * 通过 `@neondatabase/serverless` 的 `neon()` 工厂创建 SQL 标签模板。
- * 标签模板 sql`...${value}...` 会**自动参数化**,防 SQL 注入。
+ * Built on `@neondatabase/serverless`'s `neon()` SQL tag-template factory.
+ * The tag-template form `sql`...${value}...` parameterises automatically —
+ * it cannot be SQL-injected.
  *
- * 部署要求:
- *   - 在 Neon 控制台创建数据库,复制 "HTTP" 连接串(以 `postgresql://...` 开头)
- *   - EdgeOne 控制台环境变量配置 DATABASE_URL=...
- *   - 本地 dev 时写入 .env(已被 .gitignore 忽略)
+ * Deployment requirements:
+ *   - Create a Neon database, copy the "HTTP" connection string
+ *     (starts with `postgresql://...`)
+ *   - Set DATABASE_URL=... in the EdgeOne console env
+ *   - For local dev: put it in .env (gitignored)
  *
- * 注意:HTTP 模式不支持事务,但本项目的鉴权场景(单条 INSERT / SELECT)无需事务。
- * 如未来需要事务,可改用 `Pool` (WS) — cf 是 Node Runtime 完全支持。
+ * Note: HTTP mode does not support transactions. The auth flows here
+ * (one INSERT or SELECT per request) don't need them. Switch to `Pool`
+ * (WS) if transactions become necessary — Node runtime supports it.
  */
 
 import { neon } from '@neondatabase/serverless';
@@ -19,8 +22,8 @@ import { neon } from '@neondatabase/serverless';
 let _sql: ReturnType<typeof neon> | null = null;
 
 /**
- * 取出共享的 sql 实例。第一次调用时初始化。
- * 不要在模块顶部初始化,避免 cold start 时 env 还未就绪。
+ * Lazy-init the shared sql instance. Initialising at module top-level can
+ * fail on cold-start before env vars are wired up.
  */
 export function getSql(env: Record<string, string | undefined>) {
   if (_sql) return _sql;
@@ -30,7 +33,7 @@ export function getSql(env: Record<string, string | undefined>) {
   return _sql;
 }
 
-// ── 业务模型 ──────────────────────────────────────────────
+// ── Domain models ────────────────────────────────────────────
 
 export interface UserRow {
   id: string;
@@ -39,7 +42,7 @@ export interface UserRow {
   created_at: string;
 }
 
-/** 大小写不敏感查找 — 与 0001_users.sql 中的 LOWER(username) 唯一索引匹配 */
+/** Case-insensitive lookup — matches the LOWER(username) unique index in 0001_users.sql. */
 export async function findUserByUsername(
   env: Record<string, string | undefined>,
   username: string,

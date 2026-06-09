@@ -1,15 +1,11 @@
 /**
- * SignInButton — 访客状态下的头部右侧 CTA
- * =====================================
+ * SignInButton — header CTA shown to anonymous visitors.
  *
- * 渲染时机:user === null(访客模式)
- * 视觉与位置:复用 UserPill 的 fixed 顶右容器,但内容更紧凑
- * 行为:点击 → 调用 useAuthGate().openSignIn() 弹出登录弹窗
+ * Rendered when user === null (guest mode). Sits in the same fixed top-right
+ * slot as UserPill but more compact. Click → useAuthGate().openSignIn().
  *
- * design-taste-frontend-v1 baseline:
- *   - 与 UserPill / LangToggle 同档玻璃磨砂
- *   - 物理反馈 active: translateY(1px)
- *   - 永久脉冲点提示"未登录"
+ * Visual: glassmorphism pill matching UserPill / LangToggle, with a perpetual
+ * gold pulse dot to signal "you're not signed in".
  */
 
 import { useT } from '../i18n';

@@ -1,24 +1,6 @@
 /**
- * AuthGate — 鉴权上下文 + 按需登录弹窗
- * ====================================
- *
- * 设计意图(2026-06 重构):
- *   旧版本是"硬门面" — 未登录时整页拦截,只展示登录页。
- *   新版本是"软门面" — 始终渲染主界面(homepage),只有当业务接口触发 401
- *   或用户主动点击 "Sign in" 时才弹出登录弹窗。
- *
- * 工作流程:
- *   1. 启动探测 /auth/user,确定当前会话状态(authenticated 或 guest)
- *   2. 通过 React Context 把 { user, signOut, openSignIn } 暴露给整棵子树
- *   3. 监听全局 'eo:auth-required' 事件(api.ts 在任何 401 时派发)→ 弹出登录弹窗
- *   4. 登录/注册成功 → 关弹窗 + 同步 user state(子组件经 hook 拿到最新 user)
- *
- * 弹窗形态:
- *   - 仅展示表单卡(原 split-screen 左侧 hero 文案已删除)
- *   - 居中、磨砂玻璃 backdrop、ESC / 点击 backdrop 关闭、右上角 X 按钮
- *   - 复用 CredentialsForm 组件(login / register 切换)
- *
- * i18n 接入:全部文案走 useT(),与全局 LangToggle 联动。
+ * AuthGate — auth context + on-demand login modal
+ * ==================================================
  */
 
 import {
@@ -46,24 +28,24 @@ type Phase = 'probing' | 'ready';
 // ── Context ───────────────────────────────────────────────
 
 interface AuthGateContextValue {
-  /** null 表示当前是访客(guest);非 null 即已登录 */
+  /** null = guest; non-null = signed in. */
   user: AuthUser | null;
-  /** 触发登出 — 清 cookie 后 user 置 null,UI 自动切回访客态 */
+  /** Sign out — clears the cookie, sets user to null, UI returns to guest state. */
   signOut: () => Promise<void>;
-  /** 打开登录弹窗(用户主动点击 / 接到 401 自动触发) */
+  /** Open the login modal (called by user action or 401 fallback). */
   openSignIn: () => void;
 }
 
 const AuthGateContext = createContext<AuthGateContextValue | null>(null);
 
-/** 子组件用此 hook 获取鉴权状态 / 打开登录弹窗 */
+/** Hook for descendants to read auth state and open the modal. */
 export function useAuthGate(): AuthGateContextValue {
   const ctx = useContext(AuthGateContext);
   if (!ctx) throw new Error('useAuthGate must be used within <AuthGate>');
   return ctx;
 }
 
-// 后端错误码 → i18n key 映射
+// Map backend error codes → i18n keys.
 const ERR_KEY: Record<string, MessageKeys> = {
   invalid_credentials: 'auth.err.invalid_credentials',
   username_taken: 'auth.err.username_taken',
@@ -75,7 +57,7 @@ const ERR_KEY: Record<string, MessageKeys> = {
   auth_required: 'auth.err.auth_required',
 };
 
-// ── Provider 主组件 ────────────────────────────────────────
+// ── Provider ─────────────────────────────────────────────
 
 interface AuthGateProps {
   children: ReactNode;
@@ -86,7 +68,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // 启动探测 — 决定初始的 user 状态
+  // Initial probe — determines whether we boot in guest or signed-in mode.
   useEffect(() => {
     let cancelled = false;
     fetchUser().then(u => {
@@ -97,7 +79,7 @@ export default function AuthGate({ children }: AuthGateProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // 全局 401 监听 — 业务请求接到 401 自动弹登录窗
+  // Global 401 listener — any business request that fails opens the modal.
   useEffect(() => {
     const onAuthRequired = () => {
       setUser(null);
@@ -125,7 +107,7 @@ export default function AuthGate({ children }: AuthGateProps) {
     setModalOpen(false);
   }, []);
 
-  // 探测阶段:渲染极简骨架避免内容闪烁
+  // Probe phase — render an empty shell so the page doesn't flash.
   if (phase === 'probing') {
     return <div className={styles.probeShell} aria-busy="true" />;
   }
@@ -140,7 +122,7 @@ export default function AuthGate({ children }: AuthGateProps) {
   );
 }
 
-// ── 登录弹窗 ────────────────────────────────────────────────
+// ── Login modal ──────────────────────────────────────────
 
 interface AuthModalProps {
   onAuthed: (u: AuthUser) => void;
@@ -151,7 +133,7 @@ function AuthModal({ onAuthed, onClose }: AuthModalProps) {
   const [mode, setMode] = useState<Mode>('login');
   const { t } = useT();
 
-  // ESC 关闭
+  // ESC closes the modal.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -160,7 +142,7 @@ function AuthModal({ onAuthed, onClose }: AuthModalProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // 锁定 body 滚动 — 弹窗期间防止背景跟随
+  // Lock body scroll while the modal is open.
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -236,7 +218,7 @@ function AuthModal({ onAuthed, onClose }: AuthModalProps) {
   );
 }
 
-// ── 通用表单 ────────────────────────────────────────────
+// ── Shared form ──────────────────────────────────────────
 
 interface FormProps {
   titleKey: MessageKeys;
@@ -266,7 +248,8 @@ function CredentialsForm({
     usernameRef.current?.focus();
   }, []);
 
-  // 切换表单时重置可见性,避免 register 切到 login 时密码意外暴露
+  // Reset visibility when switching forms — avoids password flashing if the
+  // user toggles "show password" in register and then jumps to login.
   useEffect(() => {
     setShowPassword(false);
   }, [autocompleteMode]);
@@ -376,7 +359,7 @@ function CredentialsForm({
   );
 }
 
-// ── Icons (SVG · stroke-width 统一 1.5,与 skill 规范对齐) ────────
+// ── Inline SVG icons (stroke-width 1.5) ──
 
 function EyeIcon() {
   return (

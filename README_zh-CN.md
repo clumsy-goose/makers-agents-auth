@@ -26,7 +26,7 @@
 | `AI_GATEWAY_API_KEY` | 是 | 模型网关 API key,可用 **Makers Models API Key**,也可用任何 OpenAI 兼容厂商的 key |
 | `AI_GATEWAY_BASE_URL` | 是 | 网关地址。Makers Models 用 `https://ai-gateway.edgeone.link/v1` |
 | `JWT_SECRET` | 是 | HMAC-SHA256 密钥,middleware / cloud-functions / Agent 三处共用同一个,各自独立验签。建议 ≥ 48 字节随机 |
-| `DATABASE_URL` | 是 | Neon Postgres HTTPS 连接串(`postgresql://...?sslmode=require`),用于登录 / 注册 / Agent profile 查询 |
+| `DATABASE_URL` | 是 | Neon Postgres HTTPS 连接串(`postgresql://...?sslmode=require`),用于鉴权 cloud-functions(登录 / 注册 / 当前用户查询) |
 
 
 > 本模板基于 **OpenAI 兼容**标准 — `AI_GATEWAY_*` 可指向 Makers Models 或任何兼容网关 / 厂商。
@@ -88,10 +88,9 @@ edgeone makers dev
 makers-agent-auth/
 ├── middleware.js                    # Edge V8 中间件 — Web Crypto HS256 验签;matcher 即受保护路径唯一来源
 ├── agents/
-│   ├── chat/index.ts                # POST /chat — Agent 自验签 + 读 Neon + LLM 流式
+│   ├── chat/index.ts                # POST /chat — Agent 自验签 + LLM 流式
 │   ├── stop/index.ts                # POST /stop — 中止当前 run(需鉴权)
 │   ├── _jwt.ts                      # node:crypto JWT 验签(Agent 层)
-│   ├── _db.ts                       # Neon HTTPS 客户端(Agent 层)
 │   ├── _logger.ts
 │   ├── _sse.ts                      # SSE 响应辅助
 │   └── _tools.ts                    # 自定义工具(天气 / 翻译 / 文本统计…)
@@ -140,11 +139,10 @@ makers-agent-auth/
 ### 阶段二 · Agent 调用(携带 Cookie)
 
 1. 浏览器 POST `/chat`,带 `Cookie: jwt_token=…` 与 `Markers-Conversation-Id: <uuid>` 请求头
-2. `middleware.js` 的 matcher(`/chat`、`/stop`、`/history`、`/agents/*`、`/admin/*`)用 **Web Crypto** HS256 验签。失败立即 `401`;成功 `next()` 透传,**不写任何 header** —— Agent 必须独立再验
+2. `middleware.js` 的 matcher(`/chat`、`/stop`、`/history`)用 **Web Crypto** HS256 验签。失败立即 `401`;成功 `next()` 透传,**不写任何 header** —— Agent 必须独立再验
 3. `agents/chat/index.ts` 入口调 `requireAuth(context)`,用 **node:crypto** HMAC 和**同一个** `JWT_SECRET` 独立验签。**这就是双层防御铁律**:即便有人绕过边缘,Agent 也会 401
 4. Agent 在流首帧 emit 一个 `auth_ok` SSE 事件,让第二层验签可观测(浏览器 DebugPanel 与 `curl -N` 都能看到)
-5. Agent 用 JWT 里的 `sub` 通过 HTTPS 读 Neon 中的用户 profile,emit `neon_query_start` / `neon_query_done`(含行数、时延)
-6. profile 注入到 Agent 的 instructions,OpenAI Agents SDK 跑工具循环,以 `text_delta` SSE 事件流式返回
+5. Agent 把 JWT 验签得到的 `username` / `sub` 注入到 instructions,然后跑 OpenAI Agents SDK 的工具循环,以 `text_delta` SSE 事件流式返回
 
 ### 路由
 

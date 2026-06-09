@@ -26,7 +26,7 @@ A production-shaped chat-agent template that demonstrates the **two-layer defens
 | `AI_GATEWAY_API_KEY`  | Yes      | Model gateway API key. Use your**Makers Models API Key**, or any OpenAI-compatible provider key.                                                                 |
 | `AI_GATEWAY_BASE_URL` | Yes      | Gateway base URL. For Makers Models, use `https://ai-gateway.edgeone.link/v1`.                                                                                       |
 | `JWT_SECRET`          | Yes      | HMAC-SHA256 secret shared by middleware, cloud-functions, and the Agent runtime — each layer verifies the same JWT independently. Generate ≥ 48 bytes of randomness. |
-| `DATABASE_URL`        | Yes      | Neon Postgres HTTPS connection string (`postgresql://...?sslmode=require`). Used by login / register / agent profile lookup.                                         |
+| `DATABASE_URL`        | Yes      | Neon Postgres HTTPS connection string (`postgresql://...?sslmode=require`). Used by the auth cloud-functions (login / register / user lookup).                                         |
 
 > This template follows the **OpenAI-compatible** standard — point the `AI_GATEWAY_*` variables at Makers Models or any other compatible gateway / provider.
 
@@ -87,10 +87,9 @@ Open `http://localhost:8080/agent-metrics` for the local observability panel.
 makers-agent-auth/
 ├── middleware.js                    # Edge V8 — Web Crypto HS256 verify; matcher = sole protected-path source
 ├── agents/
-│   ├── chat/index.ts                # POST /chat — Agent self-verify + Neon read + LLM stream
+│   ├── chat/index.ts                # POST /chat — Agent self-verify + LLM stream
 │   ├── stop/index.ts                # POST /stop — abort an active run (auth-gated)
 │   ├── _jwt.ts                      # node:crypto JWT verify (Agent layer)
-│   ├── _db.ts                       # Neon HTTPS client (Agent layer)
 │   ├── _logger.ts
 │   ├── _sse.ts                      # SSE response helper
 │   └── _tools.ts                    # Custom tools (weather, translate, stats, …)
@@ -139,11 +138,10 @@ The template implements the **"middleware + cloud-functions + Agent self-verify"
 ### Stage 2 · Agent call (with cookie)
 
 1. Browser POSTs `/chat` with `Cookie: jwt_token=…` and the `Markers-Conversation-Id: <uuid>` header.
-2. `middleware.js`'s matcher (`/chat`, `/stop`, `/history`, `/agents/*`, `/admin/*`) verifies the JWT with **Web Crypto** HS256. On failure it short-circuits with `401`. On success it `next()`s the request through, **without writing any header** — the agent must verify on its own.
+2. `middleware.js`'s matcher (`/chat`, `/stop`, `/history`) verifies the JWT with **Web Crypto** HS256. On failure it short-circuits with `401`. On success it `next()`s the request through, **without writing any header** — the agent must verify on its own.
 3. `agents/chat/index.ts` calls `requireAuth(context)`, which uses **node:crypto** HMAC and the same `JWT_SECRET` to verify the cookie independently. **This is the dual-defense rule**: even if the edge is bypassed, the agent still 401s.
 4. The agent emits an `auth_ok` SSE event as the first frame so the second-layer verification is observable (visible in the in-browser DebugPanel and via `curl -N`).
-5. The agent reads the user profile from Neon over HTTPS, emitting `neon_query_start` / `neon_query_done` events with row count and latency.
-6. The profile is injected into the agent's instructions; the OpenAI Agents SDK runs the tool loop and streams `text_delta` events back over SSE.
+5. The agent injects the JWT-verified `username` / `sub` into the model instructions and runs the OpenAI Agents SDK tool loop, streaming `text_delta` events back over SSE.
 
 ### Routes
 

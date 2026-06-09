@@ -32,7 +32,7 @@ export interface AuthUser {
   username: string;
 }
 
-/** 401 时统一抛出此错误,UI 层捕获后跳登录页 */
+/** Thrown on 401 so UI layer can react (typically: open the login modal). */
 export class AuthRequiredError extends Error {
   constructor() {
     super('auth_required');
@@ -40,12 +40,12 @@ export class AuthRequiredError extends Error {
   }
 }
 
-/** 派发全局 401 信号 — AuthGate 监听后弹登录窗 */
+/** Dispatch the global 401 signal — AuthGate listens for this to open the modal. */
 function dispatchAuthRequired(): void {
   window.dispatchEvent(new CustomEvent('eo:auth-required'));
 }
 
-/** 通用 401 探测 — 任何业务请求拿到 401 都视为登录失效(抛错版,适合非流式调用) */
+/** Generic 401 guard — any business request that gets 401 is treated as session-expired (throwing variant for non-streaming callers). */
 function check401<T extends Response>(res: T): T {
   if (res.status === 401) {
     dispatchAuthRequired();
@@ -84,7 +84,7 @@ export async function register(username: string, password: string): Promise<Auth
   return data.user;
 }
 
-/** 探测当前是否已登录 — 失败返回 null,UI 据此渲染登录页或聊天页 */
+/** Probe the current session — returns null on failure so the UI can render the guest state. */
 export async function fetchUser(): Promise<AuthUser | null> {
   try {
     const res = await fetch(API.authUser, { credentials: 'include' });
@@ -119,8 +119,9 @@ export interface StreamCallbacks {
   onError: (err: Error) => void;
   onRawEvent?: (event: RawSseEvent) => void;
   /**
-   * 401 时(登录失效)优先调用,onError 不会再触发。
-   * 上层据此清理乐观插入的占位气泡,而不必把它当作"请求失败"展示。
+   * Called when the session has expired (401). Takes precedence over onError;
+   * lets the UI clean up its optimistic placeholder bubble instead of
+   * surfacing a misleading "request failed" message.
    */
   onAuthRequired?: () => void;
 }
@@ -141,7 +142,7 @@ export async function fetchConversationHistory(conversationId: string): Promise<
         credentials: 'include',
       });
 
-      // 401 = 登录失效,统一处理
+      // 401 = session expired, handle uniformly.
       if (res.status === 401) {
         check401(res);
       }
@@ -209,9 +210,10 @@ export function sendMessageStream(
       });
 
       if (res.status === 401) {
-        // 登录失效:派发全局事件让 AuthGate 弹登录窗,
-        // 调用 onAuthRequired 让上层清理占位气泡,然后直接退出 —
-        // 不走 onError,避免在聊天窗里展示"请求失败"误导用户。
+        // Session expired: dispatch the global event so AuthGate opens the modal,
+        // call onAuthRequired so the caller can clean up its placeholder bubble,
+        // then return without invoking onError — we don't want a misleading
+        // "request failed" message in the chat for what is really a sign-in prompt.
         dispatchAuthRequired();
         callbacks.onAuthRequired?.();
         return;
@@ -312,8 +314,6 @@ function dispatchSseChunk(
         markDone();
         cb.onDone();
         break;
-      // auth_ok / neon_query_start / neon_query_done 仅经 onRawEvent 进 DebugPanel,
-      // 不再触发任何前端动效或链路高亮。
     }
   } catch {
     if (cb.onRawEvent) {
@@ -329,7 +329,7 @@ function dispatchSseChunk(
 
 /**
  * Request the backend to abort the currently running agent
- * 对应 agents/chat/stop.py → POST /chat/stop
+ * (POST /stop, handled by agents/stop/index.ts).
  *
  * Note: the stop request header must NOT carry the same conversation_id as chat,
  * otherwise the runtime will overwrite chat's cancel_event with stop's cancel_event,

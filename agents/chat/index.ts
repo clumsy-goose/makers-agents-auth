@@ -21,14 +21,12 @@ import { createLogger } from '../_logger';
 import { createTools } from '../_tools';
 import { sseResponse } from '../_sse';
 import { requireAuth, AuthError, unauthorizedResponse } from '../_jwt';
-import { readUserProfile, type UserProfile } from '../_db';
 
 const logger = createLogger('chat');
 const DEFAULT_MODEL = '@makers/hy3-preview';
 
 export async function onRequest(context: any) {
-  // ── 双层防御铁律:Agent 必须独立验签,不依赖中间件写下的任何 header ──
-  // 即使有人绕过 EdgeOne 边缘节点直连内部 Agent 入口,这里也会 401 拒绝
+
   let authPayload;
   try {
     authPayload = requireAuth(context);
@@ -94,10 +92,6 @@ export async function onRequest(context: any) {
   // Convert SDK stream events into business SSE events.
   return sseResponse(
     async function* () {
-      // ── trace 信号:Agent 已独立 HMAC 验签通过,在流首帧告诉客户端 ──
-      // 双层防御铁律的实证 — DebugPanel / `curl -N` 能看到此事件,
-      // 用以确认这一跳真的跑到了 Agent 内部、且没绕过 node:crypto 验签。
-      // 字段保留 sub / username / ts 方便排障与时延对账。
       yield {
         event: 'auth_ok',
         data: {
@@ -108,50 +102,9 @@ export async function onRequest(context: any) {
         },
       };
 
-      // ── 阶段二链路第二步:Agent 内部读 Neon 取业务数据(HTTPS 模式) ──
-      // 拿 JWT.sub 去 users 表查 profile,把个性化上下文注入到 LLM 的 instructions。
-      // 同时 emit neon_query_start / neon_query_done SSE 事件,后端日志与浏览器
-      // DebugPanel 都能看到这一跳的真实 HTTPS 时延,作为"Agent 直连业务数据库"的实证。
-      let userProfile: UserProfile | null = null;
-      const queryStart = Date.now();
-      yield {
-        event: 'neon_query_start',
-        data: { layer: 'neon', op: 'select_user_profile', ts: queryStart },
-      };
-      try {
-        userProfile = await readUserProfile(env, authPayload.sub);
-        yield {
-          event: 'neon_query_done',
-          data: {
-            layer: 'neon',
-            ok: true,
-            rows: userProfile ? 1 : 0,
-            ms: Date.now() - queryStart,
-            ts: Date.now(),
-          },
-        };
-      } catch (e) {
-        // Neon 不通时 Agent 仍然能继续(用降级 instructions),只是没有个性化上下文
-        logger.error(`[neon] read failed: ${(e as Error).message}`);
-        yield {
-          event: 'neon_query_done',
-          data: {
-            layer: 'neon',
-            ok: false,
-            error: (e as Error).message,
-            ms: Date.now() - queryStart,
-            ts: Date.now(),
-          },
-        };
-      }
-
-      // 把 profile 注入到本次会话的 instructions(每条消息生效一次)
-      const profileLine = userProfile
-        ? `Currently signed-in user: ${userProfile.username} (registered ${userProfile.created_at}).`
-        : `Signed-in user (id=${authPayload.sub}) — profile lookup unavailable.`;
       const sessionAgent = new Agent({
         name: agent.name,
-        instructions: `${agent.instructions}\n\n${profileLine}`,
+        instructions: `${agent.instructions}\n\nCurrently signed-in user: ${authPayload.username} (id=${authPayload.sub}).`,
         tools: agent.tools,
         model: agent.model,
       });

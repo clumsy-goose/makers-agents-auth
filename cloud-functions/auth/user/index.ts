@@ -1,12 +1,14 @@
 /**
- * GET /auth/user — 返回当前已登录用户(前端刷新页面后用来回填会话状态)
+ * GET /auth/user — return the currently signed-in user
+ * (used by the front end to rehydrate session state after a page refresh).
  *
- * 鉴权拓扑:
- *   /auth/* 不在 middleware.js 的 matcher 里,平台路由直接派发到本函数,
- *   不经过边缘中间件 → 本函数是这条路径上**唯一的鉴权关卡**,必须自己 requireAuth。
+ * Auth topology:
+ *   /auth/* is NOT in middleware.js's matcher — the platform routes directly
+ *   here, skipping the edge middleware. This function is therefore the ONLY
+ *   auth gate on this path and must call requireAuth itself.
  *
- *   验签实现(node:crypto HMAC-SHA256)与 middleware.js 的 Web Crypto 字节级一致,
- *   共用同一个 JWT_SECRET。
+ *   The verification implementation (node:crypto HMAC-SHA256) is byte-for-byte
+ *   compatible with middleware.js's Web Crypto verifier; both share JWT_SECRET.
  */
 
 import { requireAuth, AuthError, unauthorizedResponse } from '../../_jwt';
@@ -32,5 +34,5 @@ export async function onRequestGet(context: any): Promise<Response> {
   );
 }
 
-// 兼容部分前端用 POST 刷新会话的场景
+// Some clients refresh the session via POST — accept that too.
 export const onRequestPost = onRequestGet;

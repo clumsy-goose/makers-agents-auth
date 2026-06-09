@@ -1,16 +1,17 @@
 /**
- * JWT (HS256) — Node Runtime 版
+ * JWT (HS256) — Node runtime
  * ================================
- * 用于 cloud-functions/* 与 agents/*。
+ * Used by cloud-functions/* and agents/*.
  *
- * 与 middleware (Web Crypto) 端的 ./lib/edge-jwt.js 在以下方面严格一致:
- *   - 算法:HMAC-SHA256
- *   - Header: { "alg": "HS256", "typ": "JWT" }
- *   - 编码:base64url(无 padding)
- *   - Payload 形状:{ sub, username, iat, exp }
+ * Byte-for-byte compatible with the Web-Crypto verifier in middleware.js:
+ *   - Algorithm:  HMAC-SHA256
+ *   - Header:     { "alg": "HS256", "typ": "JWT" }
+ *   - Encoding:   base64url (no padding)
+ *   - Payload:    { sub, username, iat, exp }
  *
- * **重要**:Agent / cf 内部必须用本工具独立验签,绝不读 mw 写的任何 header
- * (双层防御铁律:防直连绕过)。
+ * IMPORTANT: cf / agent code must verify independently with this module —
+ * it must not trust any header written by the middleware (defense in depth
+ * against direct path bypasses).
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -21,8 +22,8 @@ const TYP = 'JWT';
 export interface JwtPayload {
   sub: string;        // user id (uuid)
   username: string;
-  iat: number;        // 签发时间(秒)
-  exp: number;        // 过期时间(秒)
+  iat: number;        // issued-at (seconds)
+  exp: number;        // expiry (seconds)
 }
 
 // ── base64url helpers ─────────────────────────────────────────
@@ -44,17 +45,17 @@ function hmac(secret: string, data: string): Buffer {
 // ── public API ────────────────────────────────────────────────
 
 /**
- * JWT 过期秒数 — 全局唯一来源,login / register / cookie maxAge 共用。
- * 3 天:在"安全短 TTL"和"用户体验不要频繁掉线"之间的折中。
+ * JWT TTL — single source of truth, shared by login / register / cookie maxAge.
+ * 3 days: a compromise between short-TTL safety and not logging users out too often.
  */
 export const JWT_TTL_SECONDS = 3 * 24 * 60 * 60;
 
 /**
- * 签发 JWT。
+ * Sign a JWT. iat / exp are injected automatically.
  *
- * @param payload 至少包含 sub / username,iat / exp 由本函数自动注入
- * @param secret  共享密钥(JWT_SECRET)
- * @param ttlSec  过期秒数,默认 JWT_TTL_SECONDS(3 天)
+ * @param payload at minimum `{ sub, username }`
+ * @param secret  shared secret (JWT_SECRET)
+ * @param ttlSec  expiry in seconds; defaults to JWT_TTL_SECONDS (3 days)
  */
 export function signJwt(
   payload: { sub: string; username: string },
@@ -76,10 +77,8 @@ export function signJwt(
 }
 
 /**
- * 校验 JWT。失败时**抛异常**(由调用方决定 401 / 重定向)。
- *
- * - 签名比对使用 timingSafeEqual,防时序攻击
- * - 过期立即拒绝
+ * Verify a JWT. Throws on any failure — callers decide whether to 401 / redirect.
+ * Uses timingSafeEqual for the signature check; rejects expired tokens.
  */
 export function verifyJwt(token: string, secret: string): JwtPayload {
   if (!secret) throw new Error('JWT_SECRET is required');
@@ -89,14 +88,14 @@ export function verifyJwt(token: string, secret: string): JwtPayload {
   if (parts.length !== 3) throw new Error('malformed token');
   const [headerB64, payloadB64, sigB64] = parts;
 
-  // 1) 重算签名
+  // 1) Signature.
   const expected = hmac(secret, `${headerB64}.${payloadB64}`);
   const actual = b64urlDecode(sigB64);
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     throw new Error('signature mismatch');
   }
 
-  // 2) 解析 payload
+  // 2) Payload.
   let payload: JwtPayload;
   try {
     payload = JSON.parse(b64urlDecode(payloadB64).toString('utf8'));
@@ -104,7 +103,7 @@ export function verifyJwt(token: string, secret: string): JwtPayload {
     throw new Error('payload not json');
   }
 
-  // 3) header alg 检查(防 alg=none 攻击)
+  // 3) Header alg (defends against alg=none).
   let header: { alg?: string; typ?: string };
   try {
     header = JSON.parse(b64urlDecode(headerB64).toString('utf8'));
@@ -113,7 +112,7 @@ export function verifyJwt(token: string, secret: string): JwtPayload {
   }
   if (header.alg !== ALG) throw new Error(`unsupported alg: ${header.alg}`);
 
-  // 4) 过期检查
+  // 4) Expiry.
   const now = Math.floor(Date.now() / 1000);
   if (typeof payload.exp !== 'number' || payload.exp < now) {
     throw new Error('token expired');
@@ -121,12 +120,12 @@ export function verifyJwt(token: string, secret: string): JwtPayload {
   return payload;
 }
 
-// ── Cookie 解析 ──────────────────────────────────────────────
+// ── Cookie parsing ───────────────────────────────────────────
 
 /**
- * 从 Cookie 头中取出指定 key。同时兼容:
- *   - cf / mw 的 Headers 实例 (.get('cookie'))
- *   - Agent Runtime 的纯对象 headers (headers['cookie'])
+ * Read a cookie value by name. Accepts either:
+ *   - a Headers instance (cf / mw — uses .get('cookie'))
+ *   - a plain object (Agent runtime — uses headers['cookie'])
  */
 export function readCookie(
   headers: Headers | Record<string, string | undefined>,
@@ -150,7 +149,7 @@ export function readCookie(
   return null;
 }
 
-// ── Cookie 序列化(给 cf 用) ─────────────────────────────────
+// ── Cookie serialization (cf only) ───────────────────────────
 
 export interface CookieOptions {
   httpOnly?: boolean;
@@ -173,10 +172,11 @@ export function serializeCookie(name: string, value: string, opts: CookieOptions
   return parts.join('; ');
 }
 
-// ── 高阶辅助:与 agents/_jwt.ts 对齐 ──────────────────────────
+// ── High-level helpers (mirrored in agents/_jwt.ts) ──────────
 
 export const COOKIE_NAME = 'jwt_token';
 
+/** Thrown by requireAuth on any verification failure. */
 export class AuthError extends Error {
   constructor(public readonly reason: string) {
     super(reason);
@@ -184,6 +184,10 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * Extract & verify the JWT from `context`. Throws AuthError on failure;
+ * the caller decides how to respond (typically: unauthorizedResponse).
+ */
 export function requireAuth(context: {
   request: { headers: Headers | Record<string, string | undefined> };
   env?: Record<string, string | undefined>;
@@ -201,6 +205,7 @@ export function requireAuth(context: {
   }
 }
 
+/** Standard 401 response — reused by every early-reject entry. */
 export function unauthorizedResponse(reason = 'unauthorized'): Response {
   return new Response(JSON.stringify({ error: 'unauthorized', reason }), {
     status: 401,

@@ -101,7 +101,7 @@ function contentToText(content: unknown): string {
 // ── Handler ─────────────────────────────────────────────────
 
 export async function onRequestPost(context: any): Promise<Response> {
-  // 双层防御:cf 入口独立验签,与 mw 不耦合
+  // Defense in depth: cf must verify the JWT independently of the middleware.
   try {
     requireAuth(context);
   } catch (e) {
