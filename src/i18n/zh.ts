@@ -5,7 +5,7 @@ const zh = {
 
   // Empty state
   "empty.title": "Agent 登录鉴权模板",
-  "empty.hint": "登录后即可对话。本 Demo 演示如何用 EdgeOne Makers 的中间件 + Cloud Functions 给 Agent 接口加上 JWT 鉴权,Agent 本身具备会话记忆与自定义工具(天气、穿衣、翻译、文本统计)。",
+  "empty.hint": "登录后即可对话。本 Demo 演示如何用 EdgeOne Makers 的中间件 + Cloud Functions 给 Agent 接口加上 JWT 鉴权,Agent 内置三个鉴权知识工具(中间件、流程、JWT),回答均基于真实文档片段。",
   "empty.features": "EdgeOne Store · 会话记忆 · Agent 工具",
 
   // Chat input
@@ -13,14 +13,15 @@ const zh = {
   "chat.hint": "由 OpenAI Agents SDK 驱动 · 仅供演示",
 
   // Preset questions
-  "preset.1": "北京现在天气怎么样？有什么穿衣建议？",
-  "preset.2": "将「你好，欢迎来到北京！」翻译成英文并统计字符数。",
+  "preset.1": "EdgeOne Makers 中间件如何使用？",
+  "preset.2": "登录鉴权的流程是怎么样的？",
+  "preset.3": "鉴权的原理是什么？",
+  "preset.4": "EdgeOne Makers Agents 的鉴权示例",
 
   // Tool indicators
-  "tool.weather": "天气",
-  "tool.clothing": "穿搭",
-  "tool.translate": "翻译",
-  "tool.statistics": "统计",
+  "tool.middleware": "中间件",
+  "tool.flow": "流程",
+  "tool.jwt": "JWT",
 
   // Status & errors
   "status.error": "请求失败，请检查后端服务是否正常运行。",
