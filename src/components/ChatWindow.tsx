@@ -32,9 +32,6 @@ export default function ChatWindow({ messages, loading }: Props) {
           <p className={styles.emptyHint}>
             {t("empty.hint")}
           </p>
-          <p className={styles.emptyFeatures}>
-            {t("empty.features")}
-          </p>
         </div>
       )}
 
