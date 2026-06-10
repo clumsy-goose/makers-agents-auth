@@ -14,16 +14,18 @@ import UserPill from './auth/UserPill';
 import SignInButton from './auth/SignInButton';
 import styles from './App.module.css';
 
-const LAMP_IDS = ['get_middleware_doc', 'get_auth_flow', 'get_jwt_spec'] as const;
+const LAMP_IDS = ['get_weather', 'get_clothing_advice', 'translate_text', 'text_statistics'] as const;
 const LAMP_ICONS: Record<string, string> = {
-  get_middleware_doc: '🛡️',
-  get_auth_flow: '🔄',
-  get_jwt_spec: '🔑',
+  get_weather: '☀️',
+  get_clothing_advice: '👔',
+  translate_text: '🌐',
+  text_statistics: '📊',
 };
 const LAMP_I18N_KEYS: Record<string, string> = {
-  get_middleware_doc: 'tool.middleware',
-  get_auth_flow: 'tool.flow',
-  get_jwt_spec: 'tool.jwt',
+  get_weather: 'tool.weather',
+  get_clothing_advice: 'tool.clothing',
+  translate_text: 'tool.translate',
+  text_statistics: 'tool.statistics',
 };
 
 const CONVERSATION_ID_STORAGE_KEY = 'eo_conversation_id';

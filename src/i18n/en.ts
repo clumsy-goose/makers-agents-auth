@@ -5,7 +5,7 @@ const en = {
 
   // Empty state
   "empty.title": "Agents Login Auth Starter",
-  "empty.hint": "Sign in to start chatting. This demo shows how to protect Agent endpoints with JWT auth on EdgeOne Makers using middleware + Cloud Functions. The Agent ships with three auth-knowledge tools (middleware, flow, JWT) so every answer is grounded in real doc snippets.",
+  "empty.hint": "Sign in to start chatting. This demo shows how to protect Agent endpoints with JWT auth on EdgeOne Makers using middleware + Cloud Functions. The Agent itself ships with session memory and custom tools (weather, clothing, translation, text stats).",
   "empty.features": "EdgeOne Store · Session Memory · Agent Tools",
 
   // Chat input
@@ -13,15 +13,14 @@ const en = {
   "chat.hint": "Powered by OpenAI Agents SDK · Demo only",
 
   // Preset questions
-  "preset.1": "How do I use EdgeOne Makers middleware?",
-  "preset.2": "What does the login auth flow look like?",
-  "preset.3": "What's the principle behind the auth scheme?",
-  "preset.4": "EdgeOne Makers Agents auth example",
+  "preset.1": "What is the weather like in Beijing now? Any clothing suggestions?",
+  "preset.2": "Translate \"Hello, welcome to Beijing!\" into English and count the characters.",
 
   // Tool indicators
-  "tool.middleware": "Middleware",
-  "tool.flow": "Flow",
-  "tool.jwt": "JWT",
+  "tool.weather": "Weather",
+  "tool.clothing": "Clothing",
+  "tool.translate": "Translate",
+  "tool.statistics": "Statistics",
 
   // Status & errors
   "status.error": "Request failed. Please check if the backend service is running.",

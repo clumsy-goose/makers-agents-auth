@@ -9,7 +9,7 @@ interface Props {
   disabled: boolean;
 }
 
-const PRESET_KEYS: MessageKeys[] = ['preset.1', 'preset.2', 'preset.3', 'preset.4'];
+const PRESET_KEYS: MessageKeys[] = ['preset.1', 'preset.2'];
 
 export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) {
   const { t } = useT();
